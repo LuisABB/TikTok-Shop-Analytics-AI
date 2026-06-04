@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TikTok Shop Analytics</title>
+
+  <!-- Bootstrap 5 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <!-- Custom -->
+  <link rel="stylesheet" href="/css/custom.css" />
+</head>
+<body>
+
+<!-- ── Sidebar ────────────────────────────────────────────────────────────── -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <span class="brand-icon">▶</span>
+    <span class="brand-name">TikTok<span class="text-teal">Shop</span></span>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">PRINCIPAL</div>
+    <a href="#" class="nav-item" data-page="dashboard">
+      <i class="bi bi-speedometer2"></i>
+      <span>Dashboard</span>
+    </a>
+    <a href="#" class="nav-item" data-page="import">
+      <i class="bi bi-cloud-upload"></i>
+      <span>Importar CSV</span>
+    </a>
+
+    <div class="nav-section-label mt-3">ANÁLISIS</div>
+    <a href="#" class="nav-item" data-page="products">
+      <i class="bi bi-box-seam"></i>
+      <span>Productos</span>
+    </a>
+    <a href="#" class="nav-item" data-page="videos">
+      <i class="bi bi-play-circle"></i>
+      <span>Videos</span>
+    </a>
+    <a href="#" class="nav-item" data-page="live">
+      <i class="bi bi-broadcast"></i>
+      <span>LIVE</span>
+      <span class="badge bg-danger ms-auto">LIVE</span>
+    </a>
+    <a href="#" class="nav-item" data-page="seo">
+      <i class="bi bi-search"></i>
+      <span>SEO / Búsqueda</span>
+    </a>
+
+    <div class="nav-section-label mt-3">INTELIGENCIA</div>
+    <a href="#" class="nav-item" data-page="ai">
+      <i class="bi bi-stars"></i>
+      <span>Recomendaciones IA</span>
+      <span class="badge bg-teal ms-auto">IA</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <small class="text-muted">v1.0.0 · TikTok Shop Analytics</small>
+  </div>
+</div>
+
+<!-- ── Main wrapper ──────────────────────────────────────────────────────── -->
+<div class="main-wrapper" id="mainWrapper">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <button class="btn btn-link sidebar-toggle p-0 me-3" id="sidebarToggle">
+      <i class="bi bi-list fs-4"></i>
+    </button>
+    <div class="topbar-title" id="topbarTitle">Dashboard</div>
+    <div class="ms-auto d-flex align-items-center gap-3">
+      <!-- Filtro de fechas -->
+      <div class="d-flex align-items-center gap-2">
+        <input type="date" class="form-control form-control-sm" id="filterStart" style="width:145px">
+        <span class="text-muted small">—</span>
+        <input type="date" class="form-control form-control-sm" id="filterEnd" style="width:145px">
+        <button class="btn btn-sm btn-primary" id="filterApply">
+          <i class="bi bi-funnel-fill"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Page content -->
+  <main class="page-content" id="pageContent">
+    <!-- Contenido cargado dinámicamente -->
+    <div class="d-flex justify-content-center align-items-center" style="height:60vh">
+      <div class="text-center">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-3 text-muted">Cargando...</p>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<!-- Toast container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.44.2/dist/apexcharts.min.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/app.js"></script>
+<!-- Módulos de página: deben cargarse ANTES que router.js -->
+<script src="/js/pages/dashboard.js"></script>
+<script src="/js/pages/import.js"></script>
+<script src="/js/pages/products.js"></script>
+<script src="/js/pages/videos.js"></script>
+<script src="/js/pages/live.js"></script>
+<script src="/js/pages/seo.js"></script>
+<script src="/js/pages/ai.js"></script>
+<script src="/js/router.js"></script>
+
+</body>
+</html>

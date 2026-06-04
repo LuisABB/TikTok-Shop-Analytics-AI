@@ -1,0 +1,75 @@
+<!-- Análisis de Productos -->
+<div class="row g-3 mb-4">
+  <!-- Selector de métrica -->
+  <div class="col-12 d-flex align-items-center gap-2">
+    <span class="text-muted small fw-semibold">Ordenar por:</span>
+    <div class="btn-group btn-group-sm" id="metricSelector">
+      <button class="btn btn-danger active" data-metric="gmv">GMV</button>
+      <button class="btn btn-outline-secondary" data-metric="orders">Pedidos</button>
+      <button class="btn btn-outline-secondary" data-metric="impressions">Tráfico</button>
+      <button class="btn btn-outline-secondary" data-metric="customers">Clientes</button>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Top productos bar chart -->
+  <div class="col-12 col-xl-7">
+    <div class="section-card">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-trophy me-2 text-warning"></i>Top 10 Productos</h6>
+      </div>
+      <div class="card-body-custom">
+        <div id="chart-top-products" style="min-height:300px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Productos sin ventas -->
+  <div class="col-12 col-xl-5">
+    <div class="section-card h-100">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-exclamation-circle me-2 text-danger"></i>Productos con Tráfico sin Ventas</h6>
+        <span class="badge bg-danger" id="no-sales-count">0</span>
+      </div>
+      <div class="card-body-custom p-0">
+        <div style="max-height:300px; overflow-y:auto">
+          <table class="analytics-table">
+            <thead>
+              <tr><th>Producto</th><th class="text-end">Impresiones</th><th class="text-end">Clics</th></tr>
+            </thead>
+            <tbody id="no-sales-body">
+              <tr><td colspan="3" class="text-center text-muted py-3">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabla completa de productos -->
+<div class="section-card">
+  <div class="card-header-custom">
+    <h6><i class="bi bi-table me-2"></i>Tabla de Rendimiento</h6>
+  </div>
+  <div class="card-body-custom p-0" style="overflow-x:auto">
+    <table class="analytics-table">
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th class="text-end">GMV</th>
+          <th class="text-end">Pedidos</th>
+          <th class="text-end">Clientes</th>
+          <th class="text-end">Impresiones</th>
+          <th class="text-end">Clics</th>
+          <th class="text-end">CTR</th>
+          <th class="text-end">CVR</th>
+        </tr>
+      </thead>
+      <tbody id="products-table-body">
+        <tr><td colspan="8" class="text-center text-muted py-4">Cargando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -1,0 +1,79 @@
+<!-- Performance de Videos -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Reproducciones</div>
+      <div class="kpi-value" id="v-kpi-vv">—</div>
+      <div class="kpi-sub">Total Video Views</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">GMV Video</div>
+      <div class="kpi-value" id="v-kpi-gmv">—</div>
+      <div class="kpi-sub">Ingresos de videos</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">CTR Promedio</div>
+      <div class="kpi-value" id="v-kpi-ctr">—</div>
+      <div class="kpi-sub">Clic en producto</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">CTOR Promedio</div>
+      <div class="kpi-value" id="v-kpi-ctor">—</div>
+      <div class="kpi-sub">Clic → Pedido</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-12 col-xl-6">
+    <div class="section-card">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-bar-chart me-2 text-danger"></i>Top Videos por GMV</h6>
+      </div>
+      <div class="card-body-custom">
+        <div id="chart-top-videos" style="min-height:280px"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-6">
+    <div class="section-card">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-activity me-2 text-primary"></i>CTR vs CTOR por Video</h6>
+      </div>
+      <div class="card-body-custom">
+        <div id="chart-video-rates" style="min-height:280px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section-card">
+  <div class="card-header-custom">
+    <h6><i class="bi bi-table me-2"></i>Detalle de Videos</h6>
+  </div>
+  <div class="card-body-custom p-0" style="overflow-x:auto">
+    <table class="analytics-table">
+      <thead>
+        <tr>
+          <th>Video</th>
+          <th>Autor</th>
+          <th class="text-end">Reproducciones</th>
+          <th class="text-end">GMV</th>
+          <th class="text-end">Pedidos</th>
+          <th class="text-end">CTR</th>
+          <th class="text-end">CTOR</th>
+          <th class="text-end">GPM</th>
+        </tr>
+      </thead>
+      <tbody id="videos-table-body">
+        <tr><td colspan="8" class="text-center text-muted py-4">Cargando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>

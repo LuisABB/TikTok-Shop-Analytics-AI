@@ -1,0 +1,78 @@
+<!-- SEO / Búsqueda -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Impresiones Búsqueda</div>
+      <div class="kpi-value" id="s-kpi-imp">—</div>
+      <div class="kpi-sub">Total de búsquedas con producto</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Clics Búsqueda</div>
+      <div class="kpi-value" id="s-kpi-clicks">—</div>
+      <div class="kpi-sub">Usuarios que clicaron</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">CTR Búsqueda</div>
+      <div class="kpi-value" id="s-kpi-ctr">—</div>
+      <div class="kpi-sub">Click-through rate</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">GMV Búsqueda</div>
+      <div class="kpi-value" id="s-kpi-gmv">—</div>
+      <div class="kpi-sub">Ingresos por búsqueda</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-12 col-xl-6">
+    <div class="section-card">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-search me-2 text-primary"></i>Top Productos por Impresiones de Búsqueda</h6>
+      </div>
+      <div class="card-body-custom">
+        <div id="chart-search-impressions" style="min-height:280px"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-6">
+    <div class="section-card">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-percent me-2 text-success"></i>Impresiones vs Clics por Producto</h6>
+      </div>
+      <div class="card-body-custom">
+        <div id="chart-search-rates" style="min-height:280px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section-card">
+  <div class="card-header-custom">
+    <h6><i class="bi bi-table me-2"></i>Detalle SEO por Producto</h6>
+  </div>
+  <div class="card-body-custom p-0" style="overflow-x:auto">
+    <table class="analytics-table">
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th class="text-end">Impresiones</th>
+          <th class="text-end">Clics</th>
+          <th class="text-end">CTR</th>
+          <th class="text-end">Pedidos</th>
+          <th class="text-end">Conversión</th>
+          <th class="text-end">GMV</th>
+        </tr>
+      </thead>
+      <tbody id="seo-table-body">
+        <tr><td colspan="7" class="text-center text-muted py-4">Cargando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
