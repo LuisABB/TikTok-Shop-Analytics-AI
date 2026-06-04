@@ -1,0 +1,224 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// REPORTES IMPORTADOS
+// ──────────────────────────────────────────────────────────────────────────────
+model Report {
+  id          Int       @id @default(autoincrement())
+  report_type String
+  filename    String
+  import_date DateTime  @default(now())
+  start_date  DateTime?
+  end_date    DateTime?
+  row_count   Int?
+  created_at  DateTime  @default(now())
+
+  @@map("reports")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PRODUCTOS
+// ──────────────────────────────────────────────────────────────────────────────
+model Product {
+  id           Int             @id @default(autoincrement())
+  product_id   String          @unique
+  product_name String
+  status       String?
+  category     String?
+  price        Decimal?        @db.Decimal(15, 2)
+  created_at   DateTime        @default(now())
+  updated_at   DateTime        @updatedAt
+  metrics      ProductMetric[]
+  search_stats SearchMetric[]
+
+  @@map("products")
+}
+
+model ProductMetric {
+  id              Int      @id @default(autoincrement())
+  product_id      String
+  report_date     DateTime
+  channel         String   @default("all")
+  gmv             Decimal? @db.Decimal(15, 2)
+  orders          Int?
+  customers       Int?
+  impressions     Int?
+  views           Int?
+  clicks          Int?
+  add_to_cart     Int?
+  conversion_rate Decimal? @db.Decimal(10, 8)
+  ctr             Decimal? @db.Decimal(10, 8)
+  created_at      DateTime @default(now())
+  product         Product  @relation(fields: [product_id], references: [product_id])
+
+  @@unique([product_id, report_date, channel])
+  @@map("product_metrics")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MÉTRICAS GLOBALES DE TIENDA
+// ──────────────────────────────────────────────────────────────────────────────
+model StoreMetric {
+  id              Int      @id @default(autoincrement())
+  report_date     DateTime @unique
+  visitors        Int?
+  page_views      Int?
+  conversion_rate Decimal? @db.Decimal(10, 8)
+  gmv             Decimal? @db.Decimal(15, 2)
+  orders          Int?
+  customers       Int?
+  ctr             Decimal? @db.Decimal(10, 8)
+  created_at      DateTime @default(now())
+
+  @@map("store_metrics")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MÉTRICAS CORE (Shop Analytics / Core Stats)
+// ──────────────────────────────────────────────────────────────────────────────
+model CoreMetric {
+  id                Int      @id @default(autoincrement())
+  report_date       DateTime @unique
+  gmv               Decimal? @db.Decimal(15, 2)
+  orders            Int?
+  customers         Int?
+  items_sold        Int?
+  aov               Decimal? @db.Decimal(15, 2)
+  new_customers     Int?
+  impressions       Int?     // Espectadores de productos
+  clicks            Int?     // Clics de los usuarios en productos
+  add_to_cart_users Int?     // Visitante que agregó al carrito
+  conversion_rate   Decimal? @db.Decimal(10, 8)
+  created_at        DateTime @default(now())
+
+  @@map("core_metrics")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MÉTRICAS DE VIDEO
+// ──────────────────────────────────────────────────────────────────────────────
+model VideoMetric {
+  id          Int      @id @default(autoincrement())
+  report_date DateTime
+  video_id    String?
+  video_title String?
+  author      String?
+  vv          Int?
+  ctr         Decimal? @db.Decimal(10, 8)
+  ctor        Decimal? @db.Decimal(10, 8)
+  gmv         Decimal? @db.Decimal(15, 2)
+  orders      Int?
+  gpm         Decimal? @db.Decimal(15, 4)
+  created_at  DateTime @default(now())
+
+  @@map("video_metrics")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MÉTRICAS DE LIVE
+// ──────────────────────────────────────────────────────────────────────────────
+model LiveMetric {
+  id           Int      @id @default(autoincrement())
+  report_date  DateTime
+  live_id      String?
+  live_title   String?
+  viewers      Int?
+  peak_viewers Int?
+  sessions     Int?     // Transmisiones LIVE del día
+  ctr          Decimal? @db.Decimal(10, 8)
+  ctor         Decimal? @db.Decimal(10, 8)
+  gmv          Decimal? @db.Decimal(15, 2)
+  orders       Int?
+  gpm          Decimal? @db.Decimal(15, 4)
+  duration_sec  Int?     // Duración vista prom. en segundos
+  created_at   DateTime @default(now())
+
+  @@map("live_metrics")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MÉTRICAS DE SERVICIO AL CLIENTE
+// ──────────────────────────────────────────────────────────────────────────────
+model ServiceMetric {
+  id                  Int      @id @default(autoincrement())
+  report_date         DateTime
+  agent_id            String   @default("")
+  agent_alias         String?
+  assigned_chats      Int?
+  resolved_chats      Int?
+  response_rate       Decimal? @db.Decimal(10, 8)
+  satisfaction_rate   Decimal? @db.Decimal(10, 8)
+  avg_response_time_s Float?
+  created_at          DateTime @default(now())
+
+  @@unique([report_date, agent_id])
+  @@map("service_metrics")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MÉTRICAS DIARIAS DE TARJETAS DE PRODUCTO (agregado, sin product_id)
+// ──────────────────────────────────────────────────────────────────────────────
+model ProductCardDailyMetric {
+  id              Int      @id @default(autoincrement())
+  report_date     DateTime @unique
+  views           Int?
+  viewers         Int?
+  clicks          Int?
+  add_to_cart     Int?
+  add_to_cart_users Int?
+  customers       Int?
+  orders          Int?
+  gmv             Decimal? @db.Decimal(15, 2)
+  conversion_rate Decimal? @db.Decimal(10, 8)
+  ctr             Decimal? @db.Decimal(10, 8)
+  created_at      DateTime @default(now())
+
+  @@map("product_card_daily_metrics")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MÉTRICAS DIARIAS DEL CANAL DE BÚSQUEDA (Channel Stats - Search)
+// ──────────────────────────────────────────────────────────────────────────────
+model ChannelSearchMetric {
+  id                Int      @id @default(autoincrement())
+  report_date       DateTime @unique
+  gmv               Decimal? @db.Decimal(15, 2)
+  aov               Decimal? @db.Decimal(15, 2)
+  orders            Int?
+  customers         Int?
+  impressions       Int?     // Espectadores de productos
+  clicks            Int?     // Clics de los usuarios en productos
+  add_to_cart_users Int?     // Visitante que agrego al carrito
+  conversion_rate   Decimal? @db.Decimal(10, 8)
+  ctr               Decimal? @db.Decimal(10, 8)
+  created_at        DateTime @default(now())
+
+  @@map("channel_search_metrics")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MÉTRICAS SEO / BÚSQUEDA
+// ──────────────────────────────────────────────────────────────────────────────
+model SearchMetric {
+  id              Int      @id @default(autoincrement())
+  report_date     DateTime
+  product_id      String?
+  keyword         String?
+  impressions     Int?
+  clicks          Int?
+  ctr             Decimal? @db.Decimal(10, 8)
+  orders          Int?
+  conversion_rate Decimal? @db.Decimal(10, 8)
+  gmv             Decimal? @db.Decimal(15, 2)
+  created_at      DateTime @default(now())
+  product         Product? @relation(fields: [product_id], references: [product_id])
+
+  @@map("search_metrics")
+}

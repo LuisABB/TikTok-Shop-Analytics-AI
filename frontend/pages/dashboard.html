@@ -1,0 +1,97 @@
+<!-- Dashboard Ejecutivo -->
+<div class="row g-3 mb-4">
+  <!-- KPI Cards -->
+  <div class="col-6 col-xl-3">
+    <div class="kpi-card d-flex justify-content-between align-items-start">
+      <div>
+        <div class="kpi-label">GMV Total</div>
+        <div class="kpi-value" id="kpi-gmv">—</div>
+        <div class="kpi-sub">Ingresos brutos</div>
+      </div>
+      <div class="kpi-icon kpi-icon-red"><i class="bi bi-cash-stack"></i></div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="kpi-card d-flex justify-content-between align-items-start">
+      <div>
+        <div class="kpi-label">Pedidos</div>
+        <div class="kpi-value" id="kpi-orders">—</div>
+        <div class="kpi-sub">Total de órdenes</div>
+      </div>
+      <div class="kpi-icon kpi-icon-teal"><i class="bi bi-bag-check"></i></div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="kpi-card d-flex justify-content-between align-items-start">
+      <div>
+        <div class="kpi-label">Clientes</div>
+        <div class="kpi-value" id="kpi-customers">—</div>
+        <div class="kpi-sub">Compradores únicos</div>
+      </div>
+      <div class="kpi-icon kpi-icon-blue"><i class="bi bi-people"></i></div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="kpi-card d-flex justify-content-between align-items-start">
+      <div>
+        <div class="kpi-label">AOV</div>
+        <div class="kpi-value" id="kpi-aov">—</div>
+        <div class="kpi-sub">Valor promedio de orden</div>
+      </div>
+      <div class="kpi-icon kpi-icon-green"><i class="bi bi-graph-up-arrow"></i></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- GMV Trend -->
+  <div class="col-12 col-xl-8">
+    <div class="section-card">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-graph-up me-2 text-danger"></i>Tendencia GMV</h6>
+      </div>
+      <div class="card-body-custom">
+        <div id="chart-gmv-trend" style="min-height:240px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Conversión general -->
+  <div class="col-12 col-xl-4">
+    <div class="section-card h-100">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-funnel me-2 text-primary"></i>Embudo de Conversión</h6>
+      </div>
+      <div class="card-body-custom">
+        <div id="funnel-container"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Diagnósticos -->
+  <div class="col-12 col-xl-6">
+    <div class="section-card">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-exclamation-triangle me-2 text-warning"></i>Diagnósticos</h6>
+        <span class="badge bg-secondary" id="badge-diagnostics">0</span>
+      </div>
+      <div class="card-body-custom" id="diagnostics-container">
+        <div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Canal: Video vs LIVE -->
+  <div class="col-12 col-xl-6">
+    <div class="section-card">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-pie-chart me-2 text-teal"></i>GMV por Canal</h6>
+      </div>
+      <div class="card-body-custom">
+        <div id="chart-channel-mix" style="min-height:240px"></div>
+      </div>
+    </div>
+  </div>
+</div>

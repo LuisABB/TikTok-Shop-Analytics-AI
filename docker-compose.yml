@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: tiktok_shop_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-tiktok_admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-tiktok_secret}
+      POSTGRES_DB: ${DB_NAME:-tiktok_shop}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-tiktok_admin} -d ${DB_NAME:-tiktok_shop}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: tiktok_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@tiktokshop.local
+      PGADMIN_DEFAULT_PASSWORD: Admin@2024!
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local

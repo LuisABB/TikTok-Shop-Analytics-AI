@@ -1,0 +1,86 @@
+<!-- Importar CSV -->
+<div class="row g-4">
+  <div class="col-12 col-xl-7">
+    <div class="section-card">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-cloud-upload me-2 text-danger"></i>Cargar Archivo CSV</h6>
+      </div>
+      <div class="card-body-custom">
+        <div class="upload-zone" id="uploadZone">
+          <div class="upload-icon"><i class="bi bi-file-earmark-spreadsheet"></i></div>
+          <div class="upload-title">Arrastra tu CSV aquí o haz clic para seleccionar</div>
+          <div class="upload-sub mt-1">Soporta todos los reportes exportados de TikTok Shop · Máx. 10 MB</div>
+          <input type="file" id="fileInput" accept=".csv" multiple style="display:none" />
+          <button class="btn btn-danger mt-4 px-4" id="btnSelectFile">
+            <i class="bi bi-folder2-open me-2"></i>Seleccionar archivos
+          </button>
+        </div>
+
+        <!-- Cola de archivos seleccionados -->
+        <div id="fileQueue" class="mt-3" style="display:none">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="small fw-semibold text-muted">ARCHIVOS SELECCIONADOS</span>
+            <button class="btn btn-sm btn-outline-secondary" id="btnClearFile">
+              <i class="bi bi-x me-1"></i>Limpiar todo
+            </button>
+          </div>
+          <div id="fileList" class="mb-3"></div>
+          <button class="btn btn-danger w-100" id="btnImport">
+            <i class="bi bi-upload me-2"></i>Importar todos los CSV
+          </button>
+        </div>
+
+        <!-- Resultado de la importación -->
+        <div id="importResult" class="mt-3"></div>
+
+        <!-- Reportes soportados -->
+        <div class="mt-4">
+          <p class="small text-muted fw-semibold mb-2">REPORTES SOPORTADOS:</p>
+          <div class="d-flex flex-wrap gap-2">
+            <span class="badge bg-light text-dark border">Shop Analytics - Key Metrics</span>
+            <span class="badge bg-light text-dark border">Product List</span>
+            <span class="badge bg-light text-dark border">Product Card Traffic Stats</span>
+            <span class="badge bg-light text-dark border">Products Card List</span>
+            <span class="badge bg-light text-dark border">Channel Product List - Search</span>
+            <span class="badge bg-light text-dark border">Channel Stats - Search</span>
+            <span class="badge bg-light text-dark border">Core Stats</span>
+            <span class="badge bg-light text-dark border">Video Performance Core Stats</span>
+            <span class="badge bg-light text-dark border">Live Performance Core Stats</span>
+            <span class="badge bg-light text-dark border">Store Page Performance</span>
+            <span class="badge bg-light text-dark border">Service Analysis</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Historial -->
+  <div class="col-12 col-xl-5">
+    <div class="section-card">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-clock-history me-2"></i>Historial de Importaciones</h6>
+        <button class="btn btn-sm btn-outline-secondary" id="btnRefreshHistory">
+          <i class="bi bi-arrow-clockwise"></i>
+        </button>
+      </div>
+      <div class="card-body-custom p-0">
+        <div style="max-height:480px; overflow-y:auto">
+          <table class="analytics-table">
+            <thead>
+              <tr>
+                <th>Reporte</th>
+                <th>Archivo</th>
+                <th>Filas</th>
+                <th>Fecha</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody">
+              <tr><td colspan="5" class="text-center text-muted py-3">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
