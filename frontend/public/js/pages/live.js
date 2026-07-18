@@ -30,12 +30,34 @@ const LivePage = (() => {
 
   function renderTopLivesChart(sessions) {
     const top = sessions.slice(0, 10);
+    
+    // Si todos tienen GMV = 0, mostrar viewers en su lugar
+    const allZeroGMV = top.every(s => !s.gmv || s.gmv === 0);
+    const metricName = allZeroGMV ? 'Viewers' : 'GMV';
+    const metricData = top.map(s => allZeroGMV ? (s.viewers || 0) : (s.gmv || 0));
+    const isMonetary = !allZeroGMV;
+    
+    // Si no hay datos, mostrar mensaje
+    if (!top.length || metricData.every(v => v === 0)) {
+      const container = document.getElementById('chart-top-lives');
+      container.innerHTML = '<div class="text-center text-muted py-5"><i class="bi bi-bar-chart fs-1 d-block mb-3 opacity-25"></i><p class="mb-0">No hay sesiones LIVE en el período seleccionado</p></div>';
+      return;
+    }
+    
+    // Actualizar título si mostramos viewers
+    if (allZeroGMV) {
+      const titleEl = document.querySelector('#chart-top-lives')?.closest('.section-card')?.querySelector('h6');
+      if (titleEl) {
+        titleEl.innerHTML = '<i class="bi bi-bar-chart me-2 text-danger"></i>Top Sesiones LIVE por Viewers (sin GMV)';
+      }
+    }
+    
     mountChart('chart-top-lives', {
       ...defaultChartOptions(),
       chart:  { type: 'bar', height: 280 },
-      series: [{ name: 'GMV', data: top.map(s => s.gmv || 0) }],
+      series: [{ name: metricName, data: metricData }],
       xaxis:  { categories: top.map(s => truncate(s.live_title || s.live_id || fmt.date(s.report_date), 16)), labels: { style: { fontSize: '10px' } } },
-      yaxis:  { labels: { formatter: v => typeof v === 'number' ? '$' + fmt.number(v) : String(v || '') } },
+      yaxis:  { labels: { formatter: v => typeof v === 'number' ? (isMonetary ? '$' + fmt.number(v) : fmt.number(v)) : String(v || '') } },
       plotOptions: { bar: { horizontal: true, borderRadius: 4 } },
       dataLabels: { enabled: false },
       colors: [CHART_COLORS.red],
@@ -68,20 +90,32 @@ const LivePage = (() => {
       tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4 small">Sin datos. Importa "Live Performance Core Stats".</td></tr>';
       return;
     }
-    tbody.innerHTML = sessions.map(s => `
+    tbody.innerHTML = sessions.map(s => {
+      const title = s.live_title || s.live_id || '—';
+      const date = fmt.date(s.report_date);
+      const viewers = s.viewers != null ? fmt.number(s.viewers) : '—';
+      const peak = s.peak_viewers != null ? fmt.number(s.peak_viewers) : '—';
+      const gmv = s.gmv != null ? fmt.currency(s.gmv) : '$0.00';
+      const orders = s.orders != null ? fmt.number(s.orders) : '0';
+      const ctr = (s.ctr != null && s.ctr > 0) ? fmt.percent(s.ctr) : '—';
+      const ctor = (s.ctor != null && s.ctor > 0) ? fmt.percent(s.ctor) : '—';
+      const duration = s.duration_sec != null ? (s.duration_sec >= 60 ? Math.floor(s.duration_sec/60) + 'min ' + (s.duration_sec%60) + 's' : s.duration_sec + 's') : '—';
+      
+      return `
       <tr>
         <td>
-          <div style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.live_title || s.live_id || '—'}</div>
-          <small class="text-muted">${fmt.date(s.report_date)}</small>
+          <div style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${title}</div>
+          <small class="text-muted">${date}</small>
         </td>
-        <td class="text-end num">${fmt.number(s.viewers)}</td>
-        <td class="text-end num">${fmt.number(s.peak_viewers)}</td>
-        <td class="text-end num">${fmt.currency(s.gmv)}</td>
-        <td class="text-end num">${fmt.number(s.orders)}</td>
-        <td class="text-end num">${(s.ctr != null && s.ctr > 0) ? fmt.percent(s.ctr) : '—'}</td>
-        <td class="text-end num">${(s.ctor != null && s.ctor > 0) ? fmt.percent(s.ctor) : '—'}</td>
-        <td class="text-end num">${s.duration_sec != null ? (s.duration_sec >= 60 ? Math.floor(s.duration_sec/60) + 'min ' + (s.duration_sec%60) + 's' : s.duration_sec + 's') : '—'}</td>
-      </tr>`).join('');
+        <td class="text-end num">${viewers}</td>
+        <td class="text-end num">${peak}</td>
+        <td class="text-end num">${gmv}</td>
+        <td class="text-end num">${orders}</td>
+        <td class="text-end num">${ctr}</td>
+        <td class="text-end num">${ctor}</td>
+        <td class="text-end num">${duration}</td>
+      </tr>`;
+    }).join('');
   }
 
   function truncate(str, max) {

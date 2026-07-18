@@ -27,4 +27,9 @@ async function getDiagnostics(req, res) {
   res.json(diagnostics);
 }
 
-module.exports = { getExecutiveSummary, getGMVTrend, getDiagnostics };
+async function getAvailableDates(_req, res) {
+  const data = await kpi.getAvailableDates();
+  res.json(data);
+}
+
+module.exports = { getExecutiveSummary, getGMVTrend, getDiagnostics, getAvailableDates };

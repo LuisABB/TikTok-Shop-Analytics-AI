@@ -267,8 +267,6 @@ async function getTopSearchProducts(limit = 10, startDate, endDate) {
     by: ['product_id'],
     where: { ...where, product_id: { not: null } },
     _sum:  { impressions: true, clicks: true, orders: true, gmv: true },
-    orderBy: { _sum: { impressions: 'desc' } },
-    take: limit,
   });
 
   const productIds = agg.map(r => r.product_id).filter(Boolean);
@@ -278,21 +276,25 @@ async function getTopSearchProducts(limit = 10, startDate, endDate) {
   });
   const nameMap = Object.fromEntries(products.map(p => [p.product_id, p.product_name]));
 
-  return agg.map(r => {
-    const impressions = toNum(r._sum.impressions) || 0;
-    const clicks      = toNum(r._sum.clicks)      || 0;
-    const orders      = toNum(r._sum.orders)      || 0;
-    return {
-      product_id:      r.product_id,
-      product_name:    nameMap[r.product_id] || r.product_id,
-      impressions,
-      clicks,
-      orders,
-      gmv:             toNum(r._sum.gmv) || 0,
-      avg_ctr:         impressions > 0 ? (clicks  / impressions * 100) : null,
-      avg_conversion:  clicks      > 0 ? (orders  / clicks      * 100) : null,
-    };
-  });
+  return agg
+    .map(r => {
+      const impressions = toNum(r._sum.impressions) || 0;
+      const clicks      = toNum(r._sum.clicks)      || 0;
+      const orders      = toNum(r._sum.orders)      || 0;
+      return {
+        product_id:      r.product_id,
+        product_name:    nameMap[r.product_id] || r.product_id,
+        impressions,
+        clicks,
+        orders,
+        gmv:             toNum(r._sum.gmv) || 0,
+        avg_ctr:         impressions > 0 ? (clicks  / impressions * 100) : null,
+        avg_conversion:  clicks      > 0 ? (orders  / clicks      * 100) : null,
+      };
+    })
+    .filter(r => r.impressions > 0 || r.clicks > 0)
+    .sort((a, b) => b.impressions - a.impressions || b.clicks - a.clicks)
+    .slice(0, limit);
 }
 
 // ── KPIs de Servicio ───────────────────────────────────────────────────────────
@@ -312,6 +314,36 @@ async function getServiceKPIs(startDate, endDate) {
     avg_response_rate:   agg._avg.response_rate    ? toNum(agg._avg.response_rate)    * 100 : null,
     avg_satisfaction:    agg._avg.satisfaction_rate ? toNum(agg._avg.satisfaction_rate) * 100 : null,
     avg_response_time_s: toNum(agg._avg.avg_response_time_s),
+  };
+}
+
+// ── Fechas con datos importados ────────────────────────────────────────────────
+async function getAvailableDates() {
+  const rows = await prisma.$queryRaw`
+    SELECT DISTINCT d::date AS date FROM (
+      SELECT report_date AS d FROM core_metrics
+      UNION SELECT report_date FROM store_metrics
+      UNION SELECT report_date FROM product_metrics
+      UNION SELECT report_date FROM product_card_daily_metrics
+      UNION SELECT report_date FROM channel_search_metrics
+      UNION SELECT report_date FROM search_metrics
+      UNION SELECT report_date FROM video_metrics
+      UNION SELECT report_date FROM live_metrics
+      UNION SELECT report_date FROM service_metrics
+      UNION SELECT report_date FROM channel_performance
+    ) AS all_dates
+    ORDER BY date ASC
+  `;
+
+  const dates = rows.map(r => {
+    const d = r.date instanceof Date ? r.date : new Date(r.date);
+    return d.toISOString().slice(0, 10);
+  });
+
+  return {
+    dates,
+    min: dates[0] ?? null,
+    max: dates[dates.length - 1] ?? null,
   };
 }
 
@@ -340,5 +372,6 @@ module.exports = {
   getSearchKPIs,
   getTopSearchProducts,
   getServiceKPIs,
+  getAvailableDates,
   getFullSummary,
 };

@@ -1,8 +1,8 @@
-Fecha del análisis: 01/05/2026-30/05/2026,Fecha de comparación: 01/04/2026-30/04/2026,,,,,,,,,,,,,,,,,,,,,,,,,,
+Fecha del análisis: 01/05/2026-31/05/2026,Fecha de comparación: 31/03/2026-30/04/2026,,,,,,,,,,,,,,,,,,,,,,,,,,
 Resumen de los datos,,,,,,,,,,,,,,,,,,,,,,,,,,,
 ,GMV,Pedidos,Clientes,Artículos vendidos,Artículos reembolsados,Pedidos con SKU,Ingresos brutos,Vistas de página,Visitantes,Tasa de conversión,Impresiones del producto,Impresiones únicas de productos,Clics en el producto,Clics únicos,AOV,GMV atribuido al LIVE del creador,GMV de LIVE del creador,GMV indirecto de LIVE del creador,GMV atribuido a LIVE de cuentas vinculadas,GMV de LIVE del vendedor,GMV indirecto de LIVE de vendedor,GMV atribuido a videos de afiliados,GMV de videos del creador,GMV indirecto de video del creador,GMV atribuido a videos de cuentas vinculadas,GMV de videos de vendedor,GMV indirecto de video de vendedor
-Valor total,0,0,0,0,-,0,-,1216,880,0,68403,45891,1327,903,-,0,0,0,0,0,0,0,0,0,0,0,0
-Cambio porcentual,-,-,-,-,,-,,135.20%,128.57%,-,31.53%,12.18%,151.33%,135.77%,,-,-,-,-,-,-,-,-,-,-,-,-
+Valor total,0,0,0,0,-,0,-,1378,944,0,71885,48206,1434,968,-,0,0,0,0,0,0,0,0,0,0,0,0
+Cambio porcentual,-,-,-,-,,-,,166.54%,145.19%,-,38.22%,17.83%,171.59%,152.74%,,-,-,-,-,-,-,-,-,-,-,-,-
 ,,,,,,,,,,,,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,,,,,,,,,,,
 Datos diarios,,,,,,,,,,,,,,,,,,,,,,,,,,,
@@ -35,5 +35,6 @@ Fecha,GMV,Pedidos,Clientes,Artículos vendidos,Artículos reembolsados,Pedidos c
 26/05/2026,0,0,0,0,-,0,-,48,29,0,1831,1242,49,30,-,0,0,0,0,0,0,0,0,0,0,0,0
 27/05/2026,0,0,0,0,-,0,-,78,57,0,2593,1761,77,56,-,0,0,0,0,0,0,0,0,0,0,0,0
 28/05/2026,0,0,0,0,-,0,-,62,36,0,2319,1548,64,37,-,0,0,0,0,0,0,0,0,0,0,0,0
-29/05/2026,0,0,0,0,-,0,-,0,33,0,1627,1082,50,34,-,0,0,0,0,0,0,0,0,0,0,0,0
-30/05/2026,0,0,0,0,-,0,-,0,9,0,442,331,10,9,-,0,0,0,0,0,0,0,0,0,0,0,0
+29/05/2026,0,0,0,0,-,0,-,49,33,0,1619,1082,50,34,-,0,0,0,0,0,0,0,0,0,0,0,0
+30/05/2026,0,0,0,0,-,0,-,58,37,0,2002,1396,58,37,-,0,0,0,0,0,0,0,0,0,0,0,0
+31/05/2026,0,0,0,0,-,0,-,55,36,0,1930,1250,59,37,-,0,0,0,0,0,0,0,0,0,0,0,0

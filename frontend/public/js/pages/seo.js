@@ -27,7 +27,12 @@ const SeoPage = (() => {
   }
 
   function renderImpressionsChart(products) {
-    const top = products.slice(0, 10);
+    const top = products.filter(p => p.impressions > 0).slice(0, 10);
+    if (!top.length) {
+      document.getElementById('chart-search-impressions').innerHTML =
+        '<p class="text-center text-muted py-5 small">Sin impresiones de búsqueda en este período.</p>';
+      return;
+    }
     mountChart('chart-search-impressions', {
       ...defaultChartOptions(),
       chart:  { type: 'bar', height: 280 },
@@ -41,7 +46,12 @@ const SeoPage = (() => {
   }
 
   function renderRatesChart(products) {
-    const top = products.slice(0, 8);
+    const top = products.filter(p => p.impressions > 0 || p.clicks > 0).slice(0, 8);
+    if (!top.length) {
+      document.getElementById('chart-search-rates').innerHTML =
+        '<p class="text-center text-muted py-5 small">Sin clics de búsqueda en este período.</p>';
+      return;
+    }
     mountChart('chart-search-rates', {
       ...defaultChartOptions(),
       chart:   { type: 'bar', height: 280 },

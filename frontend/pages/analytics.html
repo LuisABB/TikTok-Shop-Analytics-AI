@@ -1,0 +1,166 @@
+<!-- Análisis Avanzado -->
+<div class="row g-3 mb-4">
+  <div class="col-12">
+    <div class="alert alert-info">
+      <i class="bi bi-info-circle me-2"></i>
+      <strong>Análisis de Embudo y Rentabilidad</strong> - Visualiza el recorrido completo del cliente desde impresiones hasta compra, identifica fugas en el embudo y analiza rentabilidad real considerando impuestos, subsidios y reembolsos.
+    </div>
+  </div>
+</div>
+
+<!-- KPIs de Embudo -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Impresiones</div>
+      <div class="kpi-value" id="kpi-impressions">—</div>
+      <div class="kpi-sub">Total de vistas</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">CTR</div>
+      <div class="kpi-value" id="kpi-ctr">—</div>
+      <div class="kpi-sub">Impresiones → Clics</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Tasa ATC</div>
+      <div class="kpi-value" id="kpi-atc-rate">—</div>
+      <div class="kpi-sub">Clics → Carrito</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">CTOR</div>
+      <div class="kpi-value" id="kpi-ctor">—</div>
+      <div class="kpi-sub">Clics → Pedidos</div>
+    </div>
+  </div>
+</div>
+
+<!-- Gráficas de Embudo -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-xl-8">
+    <div class="section-card">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-funnel me-2 text-primary"></i>Embudo de Conversión</h6>
+      </div>
+      <div class="card-body-custom">
+        <div id="chart-funnel" style="min-height:350px"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-4">
+    <div class="section-card h-100">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-droplet me-2 text-danger"></i>Pérdidas por Etapa</h6>
+      </div>
+      <div class="card-body-custom">
+        <div id="chart-leakage" style="min-height:350px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Análisis Financiero -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">GMV Bruto</div>
+      <div class="kpi-value" id="kpi-gmv">—</div>
+      <div class="kpi-sub">Ventas totales</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">GMV Neto</div>
+      <div class="kpi-value" id="kpi-net-revenue">—</div>
+      <div class="kpi-sub">Después de reembolsos</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Reembolsos</div>
+      <div class="kpi-value" id="kpi-refunds">—</div>
+      <div class="kpi-sub">Tasa de devolución</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">AOV</div>
+      <div class="kpi-value" id="kpi-aov">—</div>
+      <div class="kpi-sub">Ticket promedio</div>
+    </div>
+  </div>
+</div>
+
+<!-- Gráficas Financieras -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-xl-6">
+    <div class="section-card">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-cash-stack me-2 text-success"></i>Desglose Financiero</h6>
+      </div>
+      <div class="card-body-custom">
+        <div id="chart-financial" style="min-height:300px"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-6">
+    <div class="section-card">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-graph-up me-2 text-info"></i>Top Productos por CTOR</h6>
+      </div>
+      <div class="card-body-custom">
+        <div id="chart-top-ctor" style="min-height:300px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabla de Productos con Mayor Fuga -->
+<div class="row g-3 mb-4">
+  <div class="col-12">
+    <div class="section-card">
+      <div class="card-header-custom">
+        <h6><i class="bi bi-exclamation-triangle me-2 text-warning"></i>Productos con Mayor Pérdida en el Embudo</h6>
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-outline-secondary active" data-stage="click_to_cart" onclick="AnalyticsPage.changeLeakageStage('click_to_cart', this)">
+            Clic → Carrito
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-stage="cart_to_order" onclick="AnalyticsPage.changeLeakageStage('cart_to_order', this)">
+            Carrito → Pedido
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-stage="impression_to_click" onclick="AnalyticsPage.changeLeakageStage('impression_to_click', this)">
+            Impresión → Clic
+          </button>
+        </div>
+      </div>
+      <div class="card-body-custom">
+        <div class="table-responsive">
+          <table class="table table-hover table-sm">
+            <thead class="table-light">
+              <tr>
+                <th>Producto</th>
+                <th class="text-end">Impresiones</th>
+                <th class="text-end">Clics</th>
+                <th class="text-end">Carrito</th>
+                <th class="text-end">Pedidos</th>
+                <th class="text-end">Pérdida Etapa</th>
+              </tr>
+            </thead>
+            <tbody id="leakage-table-body">
+              <tr>
+                <td colspan="6" class="text-center text-muted py-4 small">
+                  Cargando...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

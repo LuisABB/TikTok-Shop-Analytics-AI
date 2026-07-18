@@ -27,36 +27,67 @@ model Report {
 // PRODUCTOS
 // ──────────────────────────────────────────────────────────────────────────────
 model Product {
-  id           Int             @id @default(autoincrement())
-  product_id   String          @unique
-  product_name String
-  status       String?
-  category     String?
-  price        Decimal?        @db.Decimal(15, 2)
-  created_at   DateTime        @default(now())
-  updated_at   DateTime        @updatedAt
-  metrics      ProductMetric[]
-  search_stats SearchMetric[]
+  id                Int                @id @default(autoincrement())
+  product_id        String             @unique
+  product_name      String
+  status            String?
+  category          String?
+  price             Decimal?           @db.Decimal(15, 2)
+  created_at        DateTime           @default(now())
+  updated_at        DateTime           @updatedAt
+  metrics           ProductMetric[]
+  search_stats      SearchMetric[]
+  video_products    VideoProduct[]
+  affiliate_products AffiliateProduct[]
 
   @@map("products")
 }
 
 model ProductMetric {
-  id              Int      @id @default(autoincrement())
-  product_id      String
-  report_date     DateTime
-  channel         String   @default("all")
-  gmv             Decimal? @db.Decimal(15, 2)
-  orders          Int?
-  customers       Int?
-  impressions     Int?
-  views           Int?
-  clicks          Int?
-  add_to_cart     Int?
-  conversion_rate Decimal? @db.Decimal(10, 8)
-  ctr             Decimal? @db.Decimal(10, 8)
-  created_at      DateTime @default(now())
-  product         Product  @relation(fields: [product_id], references: [product_id])
+  id                       Int      @id @default(autoincrement())
+  product_id               String
+  report_date              DateTime
+  channel                  String   @default("all")
+  
+  // Métricas de ventas básicas
+  gmv                      Decimal? @db.Decimal(15, 2)
+  orders                   Int?
+  sku_orders               Int?     // Pedidos con SKU
+  items_sold               Int?     // Artículos vendidos
+  customers                Int?
+  aov                      Decimal? @db.Decimal(10, 2) // Average Order Value
+  
+  // Métricas de tráfico total
+  impressions              Int?
+  views                    Int?
+  clicks                   Int?
+  add_to_cart              Int?
+  ctr                      Decimal? @db.Decimal(10, 8)
+  add_to_cart_rate         Decimal? @db.Decimal(10, 8)
+  ctor                     Decimal? @db.Decimal(10, 8) // Click to order rate
+  conversion_rate          Decimal? @db.Decimal(10, 8)
+  
+  // Métricas únicas (usuarios únicos)
+  unique_impressions       Int?
+  unique_clicks            Int?
+  unique_ctr               Decimal? @db.Decimal(10, 8)
+  unique_add_to_cart_users Int?
+  unique_add_to_cart_rate  Decimal? @db.Decimal(10, 8)
+  unique_ctor              Decimal? @db.Decimal(10, 8)
+  
+  // Métricas financieras avanzadas
+  gmv_with_tax             Decimal? @db.Decimal(15, 2)
+  tax                      Decimal? @db.Decimal(15, 2)
+  gmv_with_subsidy         Decimal? @db.Decimal(15, 2) // Con cofinanciación TikTok
+  shipping_fees            Decimal? @db.Decimal(15, 2)
+  
+  // Métricas de devoluciones
+  refunds                  Decimal? @db.Decimal(15, 2)
+  refunded_items           Int?
+  refunded_customers       Int?
+  
+  created_at               DateTime @default(now())
+  product                  Product  @relation(fields: [product_id], references: [product_id])
 
   @@unique([product_id, report_date, channel])
   @@map("product_metrics")
@@ -221,4 +252,158 @@ model SearchMetric {
   product         Product? @relation(fields: [product_id], references: [product_id])
 
   @@map("search_metrics")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// VIDEOS INDIVIDUALES (metadata rica de contenido)
+// ──────────────────────────────────────────────────────────────────────────────
+model Video {
+  id                   Int            @id @default(autoincrement())
+  video_id             String         @unique
+  video_title          String?
+  video_caption        String?        @db.Text
+  creator_name         String?
+  creator_id           String?
+  published_at         DateTime
+  
+  // Métricas de reproducción
+  vv                   Int?
+  completion_rate      Decimal?       @db.Decimal(10, 8)
+  
+  // Engagement
+  likes                Int?
+  comments             Int?
+  shares               Int?
+  new_followers        Int?
+  
+  // Performance comercial
+  product_impressions  Int?
+  product_clicks       Int?
+  ctr                  Decimal?       @db.Decimal(10, 8)
+  ctor                 Decimal?       @db.Decimal(10, 8)
+  gmv                  Decimal?       @db.Decimal(15, 2)
+  orders               Int?
+  gpm                  Decimal?       @db.Decimal(15, 4)
+  
+  // Cross-channel
+  video_to_live_clicks Int?
+  video_to_live_rate   Decimal?       @db.Decimal(10, 8)
+  
+  // TikTok diagnosis
+  diagnosis            String?
+  
+  created_at           DateTime       @default(now())
+  products             VideoProduct[]
+  
+  @@index([published_at])
+  @@index([creator_id])
+  @@map("videos")
+}
+
+// Relación many-to-many: Videos y Productos
+model VideoProduct {
+  id          Int     @id @default(autoincrement())
+  video_id    String
+  product_id  String
+  video       Video   @relation(fields: [video_id], references: [video_id])
+  product     Product @relation(fields: [product_id], references: [product_id])
+  
+  @@unique([video_id, product_id])
+  @@map("video_products")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// SESIONES LIVE INDIVIDUALES (análisis granular de transmisiones)
+// ──────────────────────────────────────────────────────────────────────────────
+model LiveSession {
+  id                        Int      @id @default(autoincrement())
+  live_id                   String?  @unique
+  session_title             String?
+  start_time                DateTime
+  duration_sec              Int?
+  
+  // Audiencia
+  viewers                   Int?
+  avg_viewing_duration_sec  Float?
+  avg_viewing_per_viewer    Float?
+  
+  // Engagement
+  likes                     Int?
+  comments                  Int?
+  shares                    Int?
+  new_followers             Int?
+  follow_rate               Decimal? @db.Decimal(10, 8)
+  comment_rate              Decimal? @db.Decimal(10, 8)
+  share_rate                Decimal? @db.Decimal(10, 8)
+  like_rate                 Decimal? @db.Decimal(10, 8)
+  
+  // Performance comercial
+  product_impressions       Int?
+  product_clicks            Int?
+  impressions_per_hour      Int?
+  gmv                       Decimal? @db.Decimal(15, 2)
+  gmv_per_hour              Decimal? @db.Decimal(15, 2)
+  show_gpm                  Decimal? @db.Decimal(15, 4)
+  watch_gpm                 Decimal? @db.Decimal(15, 4)
+  orders                    Int?
+  items_sold                Int?
+  customers                 Int?
+  aov                       Decimal? @db.Decimal(15, 2)
+  ctr                       Decimal? @db.Decimal(10, 8)
+  ctor                      Decimal? @db.Decimal(10, 8)
+  
+  // Ads (si se usan)
+  ads_roas                  Decimal? @db.Decimal(15, 4)
+  ads_cost                  Decimal? @db.Decimal(15, 2)
+  ads_gmv                   Decimal? @db.Decimal(15, 2)
+  
+  created_at                DateTime @default(now())
+  
+  @@index([start_time])
+  @@map("live_sessions")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PERFORMANCE POR CANAL (comparación cross-canal)
+// ──────────────────────────────────────────────────────────────────────────────
+model ChannelPerformance {
+  id              Int      @id @default(autoincrement())
+  report_date     DateTime
+  channel         String
+  
+  gmv             Decimal? @db.Decimal(15, 2)
+  orders          Int?
+  items_sold      Int?
+  customers       Int?
+  aov             Decimal? @db.Decimal(15, 2)
+  
+  impressions     Int?
+  clicks          Int?
+  ctr             Decimal? @db.Decimal(10, 8)
+  add_to_cart     Int?
+  ctor            Decimal? @db.Decimal(10, 8)
+  
+  created_at      DateTime @default(now())
+  
+  @@unique([report_date, channel])
+  @@map("channel_performance")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PRODUCTOS DE AFILIADOS (programa de influencers)
+// ──────────────────────────────────────────────────────────────────────────────
+model AffiliateProduct {
+  id              Int      @id @default(autoincrement())
+  product_id      String
+  report_period   String
+  
+  gross_revenue   Decimal? @db.Decimal(15, 2)
+  commission      Decimal? @db.Decimal(15, 2)
+  unit_sales      Int?
+  
+  product         Product  @relation(fields: [product_id], references: [product_id])
+  created_at      DateTime @default(now())
+  
+  @@unique([product_id, report_period])
+  @@map("affiliate_products")
 }

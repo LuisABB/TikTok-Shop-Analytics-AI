@@ -54,19 +54,70 @@ function getDateFilter() {
   };
 }
 
-// Inicializa los filtros de fecha con los últimos 30 días si están vacíos
-function initDateFilter() {
+// Inicializa los filtros de fecha: solo permite fechas con datos en la BD
+let _availableDates = [];
+let _fpStart = null;
+let _fpEnd = null;
+
+async function initDateFilter() {
   const startEl = document.getElementById('filterStart');
   const endEl   = document.getElementById('filterEnd');
   if (!startEl || !endEl) return;
-  if (!startEl.value && !endEl.value) {
-    const end   = new Date();
-    const start = new Date();
-    start.setDate(end.getDate() - 29);
-    const fmt = d => d.toISOString().split('T')[0];
-    startEl.value = fmt(start);
-    endEl.value   = fmt(end);
+
+  try {
+    const { dates, min, max } = await API.getAvailableDates();
+    _availableDates = dates;
+
+    if (_fpStart) { _fpStart.destroy(); _fpStart = null; }
+    if (_fpEnd)   { _fpEnd.destroy();   _fpEnd   = null; }
+
+    if (!dates.length) {
+      startEl.value = '';
+      endEl.value   = '';
+      startEl.disabled = true;
+      endEl.disabled   = true;
+      startEl.placeholder = 'Sin datos';
+      endEl.placeholder   = 'Sin datos';
+      return;
+    }
+
+    startEl.disabled = false;
+    endEl.disabled   = false;
+
+    const locale = flatpickr.l10ns?.es || 'es';
+    const baseOpts = {
+      enable: dates,
+      dateFormat: 'Y-m-d',
+      locale,
+      disableMobile: true,
+      allowInput: false,
+    };
+
+    _fpEnd = flatpickr(endEl, {
+      ...baseOpts,
+      defaultDate: max,
+    });
+
+    _fpStart = flatpickr(startEl, {
+      ...baseOpts,
+      defaultDate: min,
+      onChange(_selected, dateStr) {
+        if (!dateStr) return;
+        const endDates = _availableDates.filter(d => d >= dateStr);
+        _fpEnd.set('enable', endDates.length ? endDates : [dateStr]);
+        if (_fpEnd.input.value && _fpEnd.input.value < dateStr) {
+          _fpEnd.setDate(dateStr, false);
+        }
+      },
+    });
+  } catch (e) {
+    console.error('Error cargando fechas disponibles:', e);
+    showToast('No se pudieron cargar las fechas disponibles', 'warning');
   }
+}
+
+async function refreshDateFilter() {
+  await initDateFilter();
 }
 
 // ── ApexCharts defaults ───────────────────────────────────────────────────────

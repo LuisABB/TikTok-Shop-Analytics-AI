@@ -1,4 +1,4 @@
-"Rango de fechas: 2026-05-01 ~ 2026-05-29
+"Rango de fechas: 2026-05-01 ~ 2026-05-31
 ",,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
 Hora,GMV atribuido a LIVE (MX$),GMV de LIVE (MX$),GMV indirecto de LIVE (MX$),GPM de exhibición (MX$),Transmisiones LIVE,Número de transmisiones LIVE que generaron GMV.,Ventas de artículos atribuidas a LIVE,Artículos vendidos en LIVE,Artículos vendidos indirectamente desde LIVE,Pedidos con SKU atribuidos,Pedidos con SKU de LIVE,Pedidos con SKU indirectos de LIVE,Clientes (búsqueda),Tasa de clics (LIVE),CTOR (pedido con SKU) (LIVE),Vistas de LIVE,Duración vista prom. (transmisiones LIVE)
@@ -31,3 +31,5 @@ Hora,GMV atribuido a LIVE (MX$),GMV de LIVE (MX$),GMV indirecto de LIVE (MX$),GP
 2026-05-27,,N/A,N/A,N/A,,,,N/A,N/A,,N/A,N/A,N/A,N/A,N/A,,N/A
 2026-05-28,,N/A,N/A,N/A,,,,N/A,N/A,,N/A,N/A,N/A,N/A,N/A,,N/A
 2026-05-29,,N/A,N/A,N/A,,,,N/A,N/A,,N/A,N/A,N/A,N/A,N/A,,N/A
+2026-05-30,,N/A,N/A,N/A,,,,N/A,N/A,,N/A,N/A,N/A,N/A,N/A,,N/A
+2026-05-31,,N/A,N/A,N/A,,,,N/A,N/A,,N/A,N/A,N/A,N/A,N/A,,N/A

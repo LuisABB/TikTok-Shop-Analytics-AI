@@ -38,7 +38,7 @@ const frontendDir = path.join(__dirname, '../../frontend');
 app.use(express.static(path.join(frontendDir, 'public')));
 
 // Fragmentos de página (SPA interna)
-const VALID_PAGES = ['dashboard', 'import', 'products', 'videos', 'live', 'seo', 'ai'];
+const VALID_PAGES = ['dashboard', 'import', 'products', 'videos', 'live', 'seo', 'analytics', 'ai'];
 app.get('/pages/:page', (req, res) => {
   const { page } = req.params;
   if (!VALID_PAGES.includes(page)) {

@@ -365,3 +365,30 @@ body {
   #ai-monthly-plan-card { page-break-before: auto; }
   .section-card { page-break-inside: avoid; }
 }
+
+/* ─── Flatpickr (filtro de fechas) ─────────────────────────────────────────── */
+.flatpickr-calendar {
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  font-family: inherit;
+}
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange {
+  background: var(--tt-red);
+  border-color: var(--tt-red);
+}
+.flatpickr-day.selected:hover,
+.flatpickr-day.startRange:hover,
+.flatpickr-day.endRange:hover {
+  background: #e0254a;
+  border-color: #e0254a;
+}
+.flatpickr-day:not(.flatpickr-disabled):hover {
+  background: rgba(254, 44, 85, 0.12);
+  border-color: rgba(254, 44, 85, 0.12);
+}
+.flatpickr-day.flatpickr-disabled {
+  color: #ccc;
+  cursor: not-allowed;
+}

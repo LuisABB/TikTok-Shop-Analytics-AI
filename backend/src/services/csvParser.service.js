@@ -1,7 +1,41 @@
 'use strict';
 const { parse } = require('csv-parse');
-const fs        = require('fs');
+const { Readable } = require('stream');
 const { normalize } = require('./reportDetector.service');
+
+/**
+ * Detecta delimitador probable del CSV en base a las primeras lineas.
+ * TikTok Shop puede exportar con ',' ';' o tab segun locale/herramienta.
+ */
+function detectDelimiter(csvContent) {
+  const lines = String(csvContent)
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(Boolean)
+    .slice(0, 12);
+
+  const candidates = [',', ';', '\t'];
+  const scores = new Map(candidates.map(d => [d, 0]));
+
+  for (const line of lines) {
+    for (const d of candidates) {
+      const count = line.split(d).length - 1;
+      scores.set(d, scores.get(d) + Math.max(0, count));
+    }
+  }
+
+  let best = ',';
+  let bestScore = -1;
+  for (const d of candidates) {
+    const score = scores.get(d);
+    if (score > bestScore) {
+      best = d;
+      bestScore = score;
+    }
+  }
+
+  return bestScore > 0 ? best : ',';
+}
 
 // ── Mapeo canónico de columnas ────────────────────────────────────────────────
 // Cada entrada: [variaciones posibles] → nombre_canonico
@@ -60,20 +94,82 @@ const COLUMN_MAP = [
   { canonical: 'visitors',         patterns: ['visitors', 'unique visitors', 'visitantes', 'store visitors'] },
 
   // ── Video ───────────────────────────────────────────────────────────────────
-  { canonical: 'video_id',         patterns: ['video id', 'video_id'] },
+  { canonical: 'video_id',         patterns: ['video id', 'video_id', 'id del video'] },
   { canonical: 'video_title',      patterns: ['video title', 'video name', 'titulo video', 'content title'] },
-  { canonical: 'author',           patterns: ['author', 'creator', 'account', 'autor'] },
+  { canonical: 'video_caption',    patterns: ['video caption', 'information', 'informacion del video',
+                                               'información del video'] },
+  { canonical: 'creator_name',     patterns: ['creator name', 'nombre del creador', 'creator', 'author name'] },
+  { canonical: 'creator_id',       patterns: ['creator id', 'id del creador'] },
+  { canonical: 'author',           patterns: ['author', 'account', 'autor'] },
   { canonical: 'vv',               patterns: ['vv', 'video views', 'video view', 'reproducciones'] },
   { canonical: 'ctor',             patterns: ['ctor', 'click to order rate', 'click-to-order rate'] },
-  { canonical: 'gpm',              patterns: ['gpm', 'gmv per 1000', 'revenue per 1000', 'gmv per mille'] },
+  { canonical: 'gpm',              patterns: ['gpm', 'gmv per 1000', 'revenue per 1000', 'gmv per mille',
+                                               'show gpm', 'watch gpm'] },
+  { canonical: 'completion_rate',  patterns: ['completion rate', 'tasa de finalizacion', 'tasa de finalización'] },
+  { canonical: 'likes',            patterns: ['likes', 'me gusta'] },
+  { canonical: 'comments',         patterns: ['comments', 'comentarios'] },
+  { canonical: 'shares',           patterns: ['shares', 'compartidos'] },
+  { canonical: 'new_followers',    patterns: ['new followers', 'seguidores nuevos', 'followers'] },
+  { canonical: 'diagnosis',        patterns: ['diagnosis', 'diagnostico', 'diagnóstico'] },
 
   // ── LIVE ────────────────────────────────────────────────────────────────────
-  { canonical: 'live_id',          patterns: ['live id', 'broadcast id', 'live_id'] },
-  { canonical: 'live_title',       patterns: ['live title', 'broadcast title', 'titulo live'] },
-  { canonical: 'viewers',          patterns: ['viewers', 'live viewers', 'avg viewers', 'espectadores'] },
+  { canonical: 'live_id',          patterns: ['live id', 'broadcast id', 'live_id', 'room id'] },
+  { canonical: 'live_title',       patterns: ['live title', 'broadcast title', 'titulo live', 'livestream', 'room title'] },
+  { canonical: 'start_time',       patterns: ['start time', 'hora de inicio'] },
+  { canonical: 'duration',         patterns: ['duration', 'duracion', 'duración'] },
+  { canonical: 'viewers',          patterns: ['viewers', 'live viewers', 'avg viewers', 'espectadores', 'views'] },
   { canonical: 'peak_viewers',     patterns: ['peak viewers', 'max viewers', 'pico espectadores'] },
-  { canonical: 'duration_min',     patterns: ['duration', 'duration min', 'live duration', 'duracion',
-                                               'duración'] },
+  { canonical: 'duration_min',     patterns: ['duration min', 'live duration'] },
+  { canonical: 'avg_viewing_duration', patterns: ['avg viewing duration', 'average viewing duration',
+                                                   'duracion vista prom'] },
+  { canonical: 'follow_rate',      patterns: ['follow rate', 'tasa de seguidores'] },
+  { canonical: 'comment_rate',     patterns: ['comment rate', 'tasa de comentarios'] },
+  { canonical: 'share_rate',       patterns: ['share rate', 'tasa de compartidos'] },
+  { canonical: 'like_rate',        patterns: ['like rate', 'tasa de me gusta'] },
+  { canonical: 'impressions_per_hour', patterns: ['impressions per hour', 'impresiones por hora'] },
+  { canonical: 'gmv_per_hour',     patterns: ['gmv per hour', 'gmv por hora'] },
+
+  // ── Afiliados / Creadores ────────────────────────────────────────────────────
+  { canonical: 'gross_revenue',    patterns: ['gross revenue', 'ingresos brutos'] },
+  { canonical: 'commission',       patterns: ['commission', 'comision', 'comisión'] },
+  { canonical: 'unit_sales',       patterns: ['unit sales', 'ventas de unidades', 'units'] },
+
+  // ── Canal ─────────────────────────────────────────────────────────────────────
+  { canonical: 'channel',          patterns: ['channel', 'canal', 'tipo de contenido'] },
+
+  // ── Métricas de embudo y conversión (Key Metrics) ─────────────────────────────
+  { canonical: 'sku_orders',       patterns: ['pedidos con sku', 'sku orders', 'orders sku'] },
+  { canonical: 'items_sold',       patterns: ['articulos vendidos', 'artículos vendidos', 'items sold', 'unidades vendidas'] },
+  { canonical: 'aov',              patterns: ['aov', 'average order value', 'valor promedio por pedido',
+                                               'ticket promedio'] },
+  { canonical: 'add_to_cart_rate', patterns: ['tasa de adicion al carrito', 'tasa de adición al carrito',
+                                               'add to cart rate', 'atc rate'] },
+  { canonical: 'ctor',             patterns: ['ctor', 'click to order rate', 'tasa de conversion a pedido'] },
+  
+  // ── Métricas únicas (usuarios únicos) ─────────────────────────────────────────
+  { canonical: 'unique_impressions',   patterns: ['impresiones unicas', 'impresiones únicas',
+                                                   'unique impressions', 'impresiones unicas de productos'] },
+  { canonical: 'unique_clicks',        patterns: ['clics unicos', 'clics únicos', 'unique clicks',
+                                                   'clics unicos de productos'] },
+  { canonical: 'unique_ctr',           patterns: ['ctr unica', 'ctr única', 'unique ctr'] },
+  { canonical: 'unique_add_to_cart_users', patterns: ['usuarios de agregar al carrito', 'unique atc users',
+                                                       'usuarios atc'] },
+  { canonical: 'unique_add_to_cart_rate',  patterns: ['tasa de atc unica', 'tasa de atc única',
+                                                       'unique atc rate'] },
+  { canonical: 'unique_ctor',          patterns: ['ctor unica', 'ctor única', 'unique ctor',
+                                                   'ctor pedido con sku unica'] },
+  
+  // ── Métricas financieras avanzadas ────────────────────────────────────────────
+  { canonical: 'gmv_with_tax',         patterns: ['gmv con impuestos', 'gmv with tax'] },
+  { canonical: 'tax',                  patterns: ['impuesto', 'tax', 'taxes'] },
+  { canonical: 'gmv_with_subsidy',     patterns: ['gmv con cofinanciacion', 'gmv con cofinanciación',
+                                                   'gmv with subsidy', 'gmv cofinanciacion tiktok'] },
+  { canonical: 'shipping_fees',        patterns: ['tarifas de envio', 'tarifas de envío', 'shipping fees',
+                                                   'costos de envio'] },
+  { canonical: 'refunds',              patterns: ['reembolsos', 'refunds', 'devoluciones'] },
+  { canonical: 'refunded_items',       patterns: ['articulos reembolsados', 'artículos reembolsados',
+                                                   'refunded items', 'items reembolsados'] },
+  { canonical: 'refunded_customers',   patterns: ['clientes reembolsados', 'refunded customers'] },
 
   // ── Servicio al cliente ──────────────────────────────────────────────────────
   { canonical: 'agent_id',         patterns: ['agent id', 'identificacion del agente',
@@ -101,7 +197,7 @@ const COLUMN_MAP = [
 // podría generar falsos positivos con el algoritmo de includes.
 // Clave: resultado de normalize(header). Valor: canonical deseado.
 const EXACT_MAP = {
-  'hora':    'date',         // "Hora" en exports de TikTok Shop (columna de fecha/día)
+  'hora':    'date',         // "Hora" en exports de TikTok Shop (columna de fecha/día en la mayoría de reportes)
   'id':      'product_id',   // "ID" solo, en product_list exports
   'sku':     'product_id',   // "SKU" solo como cabecera
   'producto':'product_name', // "Producto" solo, columna de nombre de producto
@@ -129,6 +225,83 @@ const EXACT_MAP = {
   'pedidos con sku atribuidos':           'orders_attributed',
   'pedidos con sku indirectos de videos': 'orders_indirect',
   'pedidos con sku indirectos de live':   'orders_indirect',
+
+  // Fix Video Performance List — campos específicos
+  'informacion del video':  'video_caption',
+  'información del video':  'video_caption',
+  'nombre del creador':     'creator_name',
+  'id del creador':         'creator_id',
+  'id del video':           'video_id',
+  'me gusta':               'likes',
+  'seguidores nuevos':      'new_followers',
+  'tasa de finalizacion de videos': 'completion_rate',
+  'tasa de finalización de videos': 'completion_rate',
+  'diagnostico':            'diagnosis',
+  
+  // Fix Live Session List — campos específicos
+  'livestream':             'live_title',
+  'start time':             'start_time',
+  'duration':               'duration',
+  'attributed gmv':         'gmv_attributed',
+  'attributed items sold':  'items_sold_attributed',
+  'attributed orders':      'orders_attributed',
+  'avg viewing duration':   'avg_viewing_duration',
+  'impressions per hour':   'impressions_per_hour',
+  'gmv per hour':           'gmv_per_hour',
+  'show gpm':               'show_gpm',
+  'watch gpm':              'watch_gpm',
+  'follow rate':            'follow_rate',
+  'comment rate':           'comment_rate',
+  'share rate':             'share_rate',
+  'like rate':              'like_rate',
+  
+  // Fix Creator Product List (Affiliates)
+  'product info':           'product_name', // primera columna en algunos exports
+  'gross revenue':          'gross_revenue',
+  'unit sales':             'unit_sales',
+
+  // Fix Channel Traffic List
+  'tipo de contenido':      'channel',
+  'live propio':            'channel_live',
+  'video propio':           'channel_video',
+  'tarjeta de producto propia': 'channel_card',
+  'afiliado':               'channel_affiliate',
+  
+  // Fix Product Traffic Key Metrics
+  'pedidos con sku':        'sku_orders',
+  'articulos vendidos':     'items_sold',
+  'artículos vendidos':     'items_sold',
+  'aov pedidos con sku':    'aov',
+  'cantidad de adiciones al carrito': 'add_to_cart',
+  'tasa de adicion al carrito': 'add_to_cart_rate',
+  'tasa de adición al carrito': 'add_to_cart_rate',
+  'ctor pedido con sku':    'ctor',
+  'impresiones unicas de productos': 'unique_impressions',
+  'impresiones únicas de productos': 'unique_impressions',
+  'clics unicos':           'unique_clicks',
+  'clics únicos':           'unique_clicks',
+  'ctr unica':              'unique_ctr',
+  'ctr única':              'unique_ctr',
+  'usuarios de agregar al carrito': 'unique_add_to_cart_users',
+  'tasa de atc unica':      'unique_add_to_cart_rate',
+  'tasa de atc única':      'unique_add_to_cart_rate',
+  'ctor pedido con sku unica': 'unique_ctor',
+  'ctor pedido con sku única': 'unique_ctor',
+  'gmv con impuestos':      'gmv_with_tax',
+  'impuesto':               'tax',
+  'gmv con cofinanciacion de tiktok': 'gmv_with_subsidy',
+  'gmv con cofinanciación de tiktok': 'gmv_with_subsidy',
+  'tarifas de envio':       'shipping_fees',
+  'tarifas de envío':       'shipping_fees',
+  'reembolsos':             'refunds',
+  'articulos reembolsados': 'refunded_items',
+  'artículos reembolsados': 'refunded_items',
+  'clientes reembolsados':  'refunded_customers',
+  
+  // Product Card Traffic Stats - columnas específicas
+  'usuario que agrego al carrito': 'add_to_cart_users',
+  'clics para agregar al carrito': 'add_to_cart',
+  'clics unicos':                  'unique_clicks',
 };
 
 /**
@@ -140,6 +313,12 @@ const EXACT_MAP = {
  */
 function resolveColumn(header) {
   const norm = normalize(header);
+  
+  // Guard: columna vacía — retornar marcador temporal
+  // (sin este guard, ''.includes(pattern) matchea TODO debido a que cualquier
+  // string incluye el string vacío, resultando en falsos positivos)
+  if (!norm) return 'empty_column';
+  
   // 1. Exact override — evita falsos positivos de includes con tokens cortos
   if (Object.prototype.hasOwnProperty.call(EXACT_MAP, norm)) return EXACT_MAP[norm];
   // 2. Includes bidireccional
@@ -193,6 +372,10 @@ const METADATA_PATTERNS = [
   /^resumen de los datos/i,
   /^datos diarios/i,
   /^\d{4}-\d{2}-\d{2}\s*~\s*\d{4}-\d{2}-\d{2}$/,
+  /^date start:/i,
+  /^tipo de contenido:/i,
+  /^comparar:/i,
+  /^\d{4}-\d{2}-\d{2}\s*~\s*\d{4}-\d{2}-\d{2}/,  // Fechas con o sin salto de línea
 ];
 
 // Celda que parece un valor de dato, no un nombre de columna:
@@ -223,25 +406,42 @@ function isMetadataRow(row) {
     if (nonEmpty.length > 0 && nonEmpty.every(c => DATA_CELL_RE.test(c))) {
       return true;
     }
+    
+    // 4. Detectar filas de sub-headers agrupados (ej: "Todo", "LIVE del vendedor", "Afiliado")
+    //    Estas filas tienen pocas palabras únicas repetidas muchas veces
+    if (nonEmpty.length > 10) {
+      const uniqueValues = new Set(nonEmpty);
+      // Si hay más de 10 celdas no-vacías pero solo 1-5 valores únicos,
+      // probablemente son categorías repetidas, no headers reales
+      if (uniqueValues.size <= 5) {
+        const repeatedLabels = /^(todo|live|video|afiliado|tarjeta|seller|creator|vendedor|product)/i;
+        const mostAreLabels = nonEmpty.filter(c => repeatedLabels.test(c)).length / nonEmpty.length;
+        if (mostAreLabels > 0.5) {
+          return true;
+        }
+      }
+    }
   }
 
   return false;
 }
 
 /**
- * Parsea un archivo CSV y devuelve los datos normalizados.
+ * Parsea el contenido de un CSV y devuelve los datos normalizados.
  * Ignora automáticamente filas vacías y de metadatos al inicio del archivo
  * (p.ej. "[Rango de fechas]: …") y detecta la cabecera real.
- * @param {string} filePath - Ruta al archivo CSV
- * @returns {Promise<{ headers: string[], canonicalHeaders: string[], rows: Object[] }>}
+ * @param {string} csvContent - Contenido del archivo CSV como string
+ * @returns {Promise<{ headers: string[], canonicalHeaders: string[], rows: Object[], dateRange: Object|null }>}
  */
-async function parseCSV(filePath) {
+async function parseCSV(csvContent) {
   return new Promise((resolve, reject) => {
+    const delimiter = detectDelimiter(csvContent);
     const rows = [];
     let headers = [];
     let canonicalHeaders = [];
+    const metadataLines = []; // Capturar líneas de metadatos
 
-    const stream = fs.createReadStream(filePath, { encoding: 'utf-8' });
+    const stream = Readable.from([csvContent]);
 
     stream.pipe(
       parse({
@@ -249,14 +449,39 @@ async function parseCSV(filePath) {
         trim: true,
         skip_empty_lines: true,
         relax_column_count: true,
+        delimiter,
       })
     )
     .on('data', (row) => {
       if (headers.length === 0) {
         // Saltar filas vacías y de metadatos hasta encontrar la cabecera real
-        if (isMetadataRow(row)) return;
+        if (isMetadataRow(row)) {
+          metadataLines.push(row); // Guardar para extraer fechas
+          return;
+        }
         headers = row;
         canonicalHeaders = row.map(resolveColumn);
+        
+        // Manejar duplicados especiales: "Product info, Product info" → product_id, product_name
+        // Esto ocurre en Creator Product List donde la primera columna es ID y la segunda nombre
+        for (let i = 0; i < canonicalHeaders.length - 1; i++) {
+          if (canonicalHeaders[i] === 'product_name' && canonicalHeaders[i + 1] === 'product_name') {
+            canonicalHeaders[i] = 'product_id';
+            break; // Solo la primera ocurrencia
+          }
+        }
+        
+        // Manejar primera columna vacía en reportes de channel traffic
+        // Si la primera columna es vacía y hay columnas típicas de métricas, interpretar como 'channel'
+        if (canonicalHeaders[0] === 'empty_column') {
+          const hasChannelMetrics = canonicalHeaders.includes('gmv') && 
+                                   canonicalHeaders.includes('orders') &&
+                                   (canonicalHeaders.includes('ctr') || canonicalHeaders.includes('clicks'));
+          if (hasChannelMetrics) {
+            canonicalHeaders[0] = 'channel';
+          }
+        }
+        
         return;
       }
       const obj = {};
@@ -265,7 +490,11 @@ async function parseCSV(filePath) {
       });
       rows.push(obj);
     })
-    .on('end', () => resolve({ headers, canonicalHeaders, rows }))
+    .on('end', () => {
+      // Extraer rango de fechas de metadatos
+      const dateRange = extractDateRangeFromMetadata(metadataLines, rows);
+      resolve({ headers, canonicalHeaders, rows, dateRange });
+    })
     .on('error', reject);
   });
 }
@@ -310,11 +539,34 @@ function parseDate(raw) {
 }
 
 /**
- * Intenta detectar el rango de fechas de los datos.
+ * Extrae rango de fechas de líneas de metadatos o filas de datos
+ * @param {Array[]} metadataLines - Líneas crudas de metadatos
  * @param {Object[]} rows - Filas normalizadas
  * @returns {{ startDate: Date|null, endDate: Date|null }}
  */
-function extractDateRange(rows) {
+function extractDateRangeFromMetadata(metadataLines, rows) {
+  // 1. Intentar extraer del header/metadatos
+  for (const row of metadataLines) {
+    const lineStr = Array.isArray(row) ? row.join(',') : String(row);
+    
+    // Patrón: "Fecha del análisis: 29/05/2026~04/06/2026" o "29/05/2026 ~ 04/06/2026"
+    const rangeMatch = lineStr.match(/(\d{2}\/\d{2}\/\d{4})\s*[~\-]\s*(\d{2}\/\d{2}\/\d{4})/);
+    if (rangeMatch) {
+      const start = parseDate(rangeMatch[1]);
+      const end = parseDate(rangeMatch[2]);
+      if (start && end) return { startDate: start, endDate: end };
+    }
+    
+    // Patrón ISO: "2026-05-01 ~ 2026-05-31"
+    const isoMatch = lineStr.match(/(\d{4}-\d{2}-\d{2})\s*[~\-]\s*(\d{4}-\d{2}-\d{2})/);
+    if (isoMatch) {
+      const start = parseDate(isoMatch[1]);
+      const end = parseDate(isoMatch[2]);
+      if (start && end) return { startDate: start, endDate: end };
+    }
+  }
+  
+  // 2. Buscar en columna 'date' de las filas
   const dates = rows
     .map(r => r.date)
     .filter(Boolean)
@@ -324,6 +576,11 @@ function extractDateRange(rows) {
 
   if (dates.length === 0) return { startDate: null, endDate: null };
   return { startDate: dates[0], endDate: dates[dates.length - 1] };
+}
+
+// Mantener compatibilidad con código existente
+function extractDateRange(rows) {
+  return extractDateRangeFromMetadata([], rows);
 }
 
 module.exports = { parseCSV, resolveColumn, cleanValue, extractDateRange, parseDate };

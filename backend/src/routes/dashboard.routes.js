@@ -2,8 +2,9 @@
 const router = require('express').Router();
 const ctrl   = require('../controllers/dashboard.controller');
 
-router.get('/summary',     ctrl.getExecutiveSummary);
-router.get('/gmv-trend',   ctrl.getGMVTrend);
-router.get('/diagnostics', ctrl.getDiagnostics);
+router.get('/summary',          ctrl.getExecutiveSummary);
+router.get('/gmv-trend',        ctrl.getGMVTrend);
+router.get('/diagnostics',      ctrl.getDiagnostics);
+router.get('/available-dates',  ctrl.getAvailableDates);
 
 module.exports = router;

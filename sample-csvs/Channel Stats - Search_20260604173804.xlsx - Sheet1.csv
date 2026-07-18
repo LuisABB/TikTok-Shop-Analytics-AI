@@ -1,4 +1,4 @@
-"[Rango de fechas]: 2026-05-01 ~ 2026-05-29
+"[Rango de fechas]: 2026-05-01 ~ 2026-05-31
 ",,,,,,,,,,,,
 ,,,,,,,,,,,,
 Hora,GMV de la pestaña Tienda (MX$),GMV por cliente prom. (MX$),Importe reembolsado (MX$),Espectadores de productos,Clics de los usuarios en productos,Visitante que agregó al carrito,Pedidos,Compradores,Pedidos reembolsados,Tasa de conversión de impresiones a clic,Tasa de clics por pedidos,Tasa de conversión de impresiones a pagos
@@ -31,3 +31,5 @@ Hora,GMV de la pestaña Tienda (MX$),GMV por cliente prom. (MX$),Importe reembol
 2026-05-27,0,0,0,162,2,1,0,0,0,1.23%,0.00%,0.00%
 2026-05-28,0,0,0,146,7,1,0,0,0,4.79%,0.00%,0.00%
 2026-05-29,0,0,0,158,6,0,0,0,0,3.80%,0.00%,0.00%
+2026-05-30,0,0,0,140,7,0,0,0,0,5.00%,0.00%,0.00%
+2026-05-31,0,0,0,187,9,1,0,0,0,4.81%,0.00%,0.00%

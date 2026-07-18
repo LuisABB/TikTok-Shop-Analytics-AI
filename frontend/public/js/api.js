@@ -21,6 +21,7 @@ const API = {
   getDashboardSummary: (params = {}) => API._fetch(`/dashboard/summary${buildQuery(params)}`),
   getGMVTrend:        (params = {}) => API._fetch(`/dashboard/gmv-trend${buildQuery(params)}`),
   getDiagnostics:     (params = {}) => API._fetch(`/dashboard/diagnostics${buildQuery(params)}`),
+  getAvailableDates:  ()             => API._fetch('/dashboard/available-dates'),
 
   // Productos
   getTopProducts:          (params = {}) => API._fetch(`/products/top${buildQuery(params)}`),
@@ -40,6 +41,12 @@ const API = {
 
   // IA
   getRecommendations: (params = {}) => API._fetch(`/ai/recommendations${buildQuery(params)}`),
+
+  // Analytics (Embudo y Rentabilidad)
+  getFunnelAnalysis:     (params = {}) => API._fetch(`/analytics/funnel${buildQuery(params)}`),
+  getTopFunnelProducts:  (params = {}) => API._fetch(`/analytics/top-funnel-products${buildQuery(params)}`),
+  getFinancialAnalysis:  (params = {}) => API._fetch(`/analytics/financial${buildQuery(params)}`),
+  getLeakageProducts:    (params = {}) => API._fetch(`/analytics/leakage${buildQuery(params)}`),
 
   // Import
   getImportHistory: () => API._fetch('/import/history'),

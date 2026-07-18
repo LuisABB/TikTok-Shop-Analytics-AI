@@ -23,7 +23,7 @@ services:
     image: dpage/pgadmin4:latest
     container_name: tiktok_pgadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@tiktokshop.local
+      PGADMIN_DEFAULT_EMAIL: admin@tiktokshop.com
       PGADMIN_DEFAULT_PASSWORD: Admin@2024!
     ports:
       - "5050:80"
@@ -34,4 +34,5 @@ services:
 
 volumes:
   postgres_data:
+    name: goyo_postgres_data
     driver: local

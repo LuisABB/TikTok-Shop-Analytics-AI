@@ -147,6 +147,9 @@ const ImportPage = (() => {
     btn.disabled = false;
     btn.innerHTML = `<i class="bi bi-upload me-2"></i>Importar ${fileQueue.filter(q => q.status === 'pending').length} CSV`;
     loadHistory();
+    if (successCount > 0 && typeof refreshDateFilter === 'function') {
+      await refreshDateFilter();
+    }
   }
 
   async function loadHistory() {

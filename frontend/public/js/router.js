@@ -10,6 +10,7 @@ const PAGE_TITLES = {
   videos:    'Performance de Videos',
   live:      'Performance LIVE',
   seo:       'SEO / Búsqueda',
+  analytics: 'Análisis Avanzado',
   ai:        'Recomendaciones IA',
 };
 
@@ -20,6 +21,7 @@ const PAGE_MODULES = {
   videos:    typeof VideosPage    !== 'undefined' ? VideosPage    : null,
   live:      typeof LivePage      !== 'undefined' ? LivePage      : null,
   seo:       typeof SeoPage       !== 'undefined' ? SeoPage       : null,
+  analytics: typeof AnalyticsPage !== 'undefined' ? AnalyticsPage : null,
   ai:        typeof AiPage        !== 'undefined' ? AiPage        : null,
 };
 
@@ -93,8 +95,8 @@ window.addEventListener('popstate', (e) => {
 });
 
 // Carga inicial según hash
-(function () {
-  initDateFilter();
+(async function () {
+  await initDateFilter();
   const page = location.hash.replace('#', '') || 'dashboard';
   navigate(page);
 })();

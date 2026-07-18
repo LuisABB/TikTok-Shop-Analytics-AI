@@ -10,6 +10,8 @@ function normalize(col) {
   return col
     .toLowerCase()
     .trim()
+    .normalize('NFD')          // Descompone caracteres con tildes
+    .replace(/[\u0300-\u036f]/g, '') // Elimina marcas diacríticas (tildes, acentos)
     .replace(/\(.*?\)/g, '')   // quitar paréntesis y su contenido
     .replace(/[_\-/]/g, ' ')   // guiones y barras → espacio
     .replace(/\s+/g, ' ')      // colapsar espacios múltiples
@@ -40,6 +42,38 @@ const SIGNATURES = [
 
   // ── Altamente específicos (columnas exclusivas) ───────────────────────────
   {
+    type:     'VIDEO_PERFORMANCE_LIST',
+    name:     'Video Performance List (Individual Videos)',
+    // Columnas exclusivas de listado de videos individuales
+    required: ['video_id', 'creator_name', 'vv', 'gpm'],
+    optional: ['video_caption', 'likes', 'comments', 'shares', 'completion_rate', 'diagnosis'],
+    priority: 100,
+  },
+  {
+    type:     'LIVE_SESSION_LIST',
+    name:     'Creator Live Performance (Individual Sessions)',
+    // Columnas exclusivas de sesiones LIVE individuales
+    required: ['live_title', 'start_time', 'duration', 'views'],
+    optional: ['follow_rate', 'comment_rate', 'impressions_per_hour', 'avg_viewing_duration'],
+    priority: 100,
+  },
+  {
+    type:     'CREATOR_PRODUCT_LIST',
+    name:     'Creator Product List (Affiliates)',
+    // Reporte de afiliados con comisiones
+    required: ['product_id', 'gross_revenue', 'commission', 'unit_sales'],
+    optional: [],
+    priority: 100,
+  },
+  {
+    type:     'CHANNEL_TRAFFIC_LIST',
+    name:     'Product Traffic by Channel',
+    // Agregado por canal sin productos individuales
+    required: ['channel', 'gmv', 'ctr', 'ctor'],
+    optional: ['impressions', 'clicks', 'add_to_cart'],
+    priority: 95,
+  },
+  {
     type:     'SERVICE_ANALYSIS',
     name:     'Service Analysis',
     // assigned_chats + response_rate son exclusivos de este reporte
@@ -58,8 +92,8 @@ const SIGNATURES = [
   {
     type:     'LIVE_PERFORMANCE',
     name:     'Live Performance Core Stats',
-    // duration_min (duración vista prom.) exclusivo de live; gpm descarta otros
-    required: ['duration_min', 'gpm'],
+    // duration (duración vista prom.) exclusivo de live; gpm descarta otros
+    required: ['duration', 'gpm'],
     optional: ['gmv', 'items_sold', 'ctor', 'views', 'customers'],
     priority: 95,
   },
@@ -70,6 +104,16 @@ const SIGNATURES = [
     required: ['product_id', 'product_name', 'status'],
     optional: ['items_sold', 'orders', 'gmv', 'impressions', 'views'],
     priority: 90,
+  },
+  {
+    type:     'PRODUCT_TRAFFIC_KEY_METRICS',
+    name:     'Product Traffic - Key Metrics',
+    // Reporte más completo con métricas únicas, financieras y de embudo
+    // Identifica por presencia de métricas únicas + financieras avanzadas
+    required: ['sku_orders', 'items_sold', 'add_to_cart', 'add_to_cart_rate'],
+    optional: ['unique_impressions', 'unique_clicks', 'unique_ctr', 'unique_ctor',
+               'gmv_with_tax', 'tax', 'refunds', 'shipping_fees', 'aov', 'ctor'],
+    priority: 95, // Mayor prioridad que PRODUCT_LIST genérico
   },
   {
     type:     'SHOP_KEY_METRICS',
@@ -93,9 +137,9 @@ const SIGNATURES = [
   {
     type:     'CHANNEL_PRODUCT_SEARCH',
     name:     'Channel Product List - Search',
-    // A nivel producto con orders (Pedidos) explícito; sin conversion_rate
-    required: ['product_id', 'product_name', 'viewers', 'orders'],
-    optional: ['clicks', 'customers', 'gmv'],
+    // A nivel producto con orders (Pedidos) explícito; con impressions o viewers
+    required: ['product_id', 'product_name', 'orders'],
+    optional: ['clicks', 'customers', 'gmv', 'impressions', 'viewers', 'diagnosis'],
     priority: 80,
   },
   {
@@ -148,12 +192,13 @@ const SIGNATURES = [
  * } | null}
  */
 function detectReportType(headers) {
-  // Lazy import: evita dependencia circular
-  // (csvParser importa normalize de este módulo)
+  // Acepta headers ya canónicos (desde csvParser) o headers originales
+  // Si son originales, los normaliza internamente
   const { resolveColumn } = require('./csvParser.service');
-
-  // Construir Set de canónicos para búsqueda O(1)
-  const colSet = new Set(headers.map(resolveColumn));
+  
+  // Si el primer elemento ya parece canónico (snake_case), asumimos que todos lo son
+  const areCanonical = headers.length > 0 && /^[a-z_]+$/.test(headers[0]);
+  const colSet = areCanonical ? new Set(headers) : new Set(headers.map(resolveColumn));
 
   const candidates = [];
   for (const sig of SIGNATURES) {

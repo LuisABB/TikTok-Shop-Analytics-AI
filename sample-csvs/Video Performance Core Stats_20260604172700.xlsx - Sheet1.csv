@@ -1,4 +1,4 @@
-"[Rango de fechas]: 2026-05-01 ~ 2026-05-29
+"[Rango de fechas]: 2026-05-01 ~ 2026-05-31
 ",,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,
 Hora,GMV atribuido al video (MX$),GMV de videos (MX$),GMV indirecto de video (MX$),VV,GPM (MX$),Pedidos con SKU atribuidos,Pedidos con SKU de videos,Pedidos con SKU indirectos de videos,Clientes diarios prom.,Espectadores de productos de videos,Impresiones de productos,Clics de productos,Tasa de clics (video),CTOR (pedido con SKU)
@@ -31,3 +31,5 @@ Hora,GMV atribuido al video (MX$),GMV de videos (MX$),GMV indirecto de video (MX
 2026-05-27,0,0,0,2051,0,0,0,0,0,1531,2073,56,0.0270,0.0000
 2026-05-28,0,0,0,1770,0,0,0,0,0,1334,1826,42,0.0230,0.0000
 2026-05-29,0,0,0,1135,0,0,0,0,0,864,1203,38,0.0316,0.0000
+2026-05-30,0,0,0,1497,0,0,0,0,0,1186,1486,32,0.0215,0.0000
+2026-05-31,0,0,0,1381,0,0,0,0,0,969,1370,31,0.0226,0.0000
