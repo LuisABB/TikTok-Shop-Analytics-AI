@@ -852,35 +852,16 @@ async function importCSV(req, res) {
   const filename = req.file.originalname;
 
   try {
-    console.log('\n🔍 ===== DEBUG IMPORT =====');
-    console.log('📁 Archivo:', filename);
-    console.log('📂 Path:', filePath);
-    console.log('📏 Size:', req.file.size, 'bytes');
-    
     const csvContent = readCSVFileContent(filePath);
-    console.log('📄 Content length:', csvContent.length, 'chars');
-    console.log('📋 Primeras 3 líneas:');
-    csvContent.split(/\r?\n/).slice(0, 3).forEach((line, i) => {
-      console.log(`   ${i + 1}: ${line.substring(0, 100)}${line.length > 100 ? '...' : ''}`);
-    });
-    
     const { headers, canonicalHeaders, rows, dateRange } = await parseCSV(csvContent);
-    console.log('📊 Headers originales:', headers.slice(0, 5));
-    console.log('🔤 Headers canónicos:', canonicalHeaders.slice(0, 8));
-    console.log('📦 Rows:', rows.length);
 
     if (!headers.length) {
-      console.log('❌ No hay headers');
       cleanup(filePath);
       return res.status(422).json({ error: 'El archivo CSV está vacío o no tiene cabeceras.' });
     }
 
     const detected = detectReportType(canonicalHeaders);
-    console.log('🎯 Detected:', detected ? `${detected.type} (${detected.score})` : 'null');
-    
     if (!detected) {
-      console.log('❌ No se detectó tipo');
-      console.log('📝 Todos los headers canónicos:', canonicalHeaders);
       cleanup(filePath);
       return res.status(422).json({
         error: 'No se pudo identificar el tipo de reporte. Verifica que sea un CSV exportado de TikTok Shop.',
