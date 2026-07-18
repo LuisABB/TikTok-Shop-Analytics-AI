@@ -407,3 +407,57 @@ model AffiliateProduct {
   @@unique([product_id, report_period])
   @@map("affiliate_products")
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PEDIDOS INDIVIDUALES (Order List — "Todo pedido" export de TikTok Shop)
+// ──────────────────────────────────────────────────────────────────────────────
+model Order {
+  id               Int         @id @default(autoincrement())
+  order_id         String      @unique            // ID único de TikTok
+  status           String                         // Completado, Enviado, Cancelado
+  substatus        String?                        // Entregado, Cancelado, etc.
+  cancel_type      String?                        // Cancel, Return
+  order_type       String?                        // Normal, Pre-order
+  order_channel    String?                        // LIVE, Videos, Product cards
+  creator_handle   String?
+  buyer_username   String?
+  order_amount     Decimal?    @db.Decimal(15, 2) // Total de la orden
+  refund_amount    Decimal?    @db.Decimal(15, 2)
+  order_created_at DateTime?                      // Created Time del CSV
+  paid_at          DateTime?                      // Paid Time del CSV
+  shipped_at       DateTime?
+  delivered_at     DateTime?
+  cancelled_at     DateTime?
+  fulfillment_type String?
+  warehouse_name   String?
+  payment_method   String?
+  state            String?
+  city             String?
+  created_at       DateTime    @default(now())
+  items            OrderItem[]
+
+  @@index([paid_at])
+  @@index([status])
+  @@index([order_channel])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                   Int      @id @default(autoincrement())
+  order_id             String
+  sku_id               String?
+  seller_sku           String?
+  product_name         String?
+  variation            String?
+  quantity             Int?
+  unit_original_price  Decimal? @db.Decimal(15, 2)
+  subtotal_before_disc Decimal? @db.Decimal(15, 2)
+  platform_discount    Decimal? @db.Decimal(15, 2)
+  seller_discount      Decimal? @db.Decimal(15, 2)
+  subtotal_after_disc  Decimal? @db.Decimal(15, 2)
+  created_at           DateTime @default(now())
+  order                Order    @relation(fields: [order_id], references: [order_id])
+
+  @@index([order_id])
+  @@map("order_items")
+}

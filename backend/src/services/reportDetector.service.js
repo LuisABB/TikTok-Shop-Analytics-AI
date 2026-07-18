@@ -40,6 +40,17 @@ function normalize(col) {
 // ─────────────────────────────────────────────────────────────────────────────
 const SIGNATURES = [
 
+  // ── Order List (Todo pedido) — columnas exclusivas de este reporte ─────────
+  {
+    type:     'ORDER_LIST',
+    name:     'Order List (Todo Pedido)',
+    // order_id + order_status + order_amount son exclusivos de este reporte
+    required: ['order_id', 'order_status', 'order_amount'],
+    optional: ['order_channel', 'sku_id', 'buyer_username', 'creator_handle',
+               'paid_at', 'cancel_type', 'fulfillment_type', 'order_substatus'],
+    priority: 100,
+  },
+
   // ── Altamente específicos (columnas exclusivas) ───────────────────────────
   {
     type:     'VIDEO_PERFORMANCE_LIST',

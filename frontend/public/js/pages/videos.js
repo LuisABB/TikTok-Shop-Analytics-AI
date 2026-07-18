@@ -2,6 +2,28 @@
  * pages/videos.js — Módulo de Performance de Videos.
  */
 const VideosPage = (() => {
+  let tableRows = [];
+  let tableSort = { key: 'vv', dir: 'desc' };
+
+  const TABLE_COLUMNS = [
+    { key: 'label',  type: 'text' },
+    { key: 'author', type: 'text' },
+    { key: 'vv',     type: 'number' },
+    { key: 'gmv',    type: 'number' },
+    { key: 'orders', type: 'number' },
+    { key: 'ctr',    type: 'number' },
+    { key: 'ctor',   type: 'number' },
+    { key: 'gpm',    type: 'number' },
+  ];
+
+  function formatDateAxisLabel(rawDate) {
+    const iso = String(rawDate || '').split('T')[0];
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return iso || '—';
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    const monthName = months[Math.max(0, Math.min(11, Number(m[2]) - 1))];
+    return `${m[3]} ${monthName} ${m[1]}`;
+  }
 
   async function init() {
     const { start, end } = getDateFilter();
@@ -10,13 +32,98 @@ const VideosPage = (() => {
         API.getVideoKPIs({ start, end }),
         API.getTopVideos({ limit: 100, start, end }), // Aumentado para mostrar todos los días
       ]);
+      setupTableSorting();
+      tableRows = videos || [];
       renderKPIs(kpis);
       renderTopVideosChart(videos);
       renderRatesChart(videos);
-      renderTable(videos);
+      renderTable(sortTableRows(tableRows));
     } catch (e) {
       showToast('Error cargando videos: ' + e.message, 'error');
     }
+  }
+
+  function setupTableSorting() {
+    const tbody = document.getElementById('videos-table-body');
+    if (!tbody) return;
+    const table = tbody.closest('table');
+    if (!table) return;
+
+    const headers = Array.from(table.querySelectorAll('thead th'));
+    headers.forEach((th, index) => {
+      const col = TABLE_COLUMNS[index];
+      if (!col) return;
+
+      th.dataset.sortKey = col.key;
+      th.style.cursor = 'pointer';
+      th.title = 'Ordenar';
+
+      if (!th.dataset.sortBound) {
+        th.addEventListener('click', () => {
+          if (tableSort.key === col.key) {
+            tableSort.dir = tableSort.dir === 'asc' ? 'desc' : 'asc';
+          } else {
+            tableSort.key = col.key;
+            tableSort.dir = col.type === 'text' ? 'asc' : 'desc';
+          }
+          updateSortIndicators(headers);
+          renderTable(sortTableRows(tableRows));
+        });
+        th.dataset.sortBound = '1';
+      }
+    });
+
+    updateSortIndicators(headers);
+  }
+
+  function updateSortIndicators(headers) {
+    headers.forEach((th, index) => {
+      const col = TABLE_COLUMNS[index];
+      if (!col) return;
+
+      const base = (th.textContent || '').replace(/[\s▲▼]+$/g, '').trim();
+      const isActive = col.key === tableSort.key;
+      const marker = isActive ? (tableSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+      th.textContent = base + marker;
+    });
+  }
+
+  function sortTableRows(rows) {
+    const col = TABLE_COLUMNS.find(c => c.key === tableSort.key) || TABLE_COLUMNS[2];
+    const dirFactor = tableSort.dir === 'asc' ? 1 : -1;
+    const arr = [...(rows || [])];
+
+    arr.sort((a, b) => {
+      const av = sortableValue(a, col.key, col.type);
+      const bv = sortableValue(b, col.key, col.type);
+
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+
+      if (col.type === 'text') {
+        return String(av).localeCompare(String(bv), 'es', { sensitivity: 'base' }) * dirFactor;
+      }
+      return ((Number(av) || 0) - (Number(bv) || 0)) * dirFactor;
+    });
+
+    return arr;
+  }
+
+  function sortableValue(video, key, type) {
+    if (!video) return null;
+
+    if (key === 'label') {
+      return video.video_title || video.video_id || video.report_date || '';
+    }
+    if (key === 'author') {
+      return video.author || '';
+    }
+
+    const raw = video[key];
+    if (raw === null || raw === undefined || raw === '') return null;
+    if (type === 'number') return Number(raw);
+    return raw;
   }
 
   function renderKPIs(kpis) {
@@ -36,11 +143,8 @@ const VideosPage = (() => {
         && (document.querySelector('#chart-top-videos').closest('.section-card').querySelector('h6').innerHTML =
           '<i class="bi bi-graph-up me-2 text-danger"></i>Tendencia de Reproducciones Diarias');
       
-      // Mostrar solo cada 3 días para evitar sobrepoblación
-      const labels = sorted.map((v, i) => {
-        const dayOnly = String(v.report_date || '').split('T')[0].slice(-2); // Solo día (DD)
-        return i % 3 === 0 ? dayOnly : ''; // Mostrar cada 3 días
-      });
+      // Mostrar fecha en todos los puntos para evitar ambigüedad
+      const labels = sorted.map(v => formatDateAxisLabel(v.report_date));
       
       mountChart('chart-top-videos', {
         ...defaultChartOptions(),
@@ -74,13 +178,13 @@ const VideosPage = (() => {
       ? [...videos].sort((a, b) => new Date(a.report_date) - new Date(b.report_date))
       : videos.slice(0, 10);
     
-    // Mostrar solo cada 3 días para datos agregados
+    // Mostrar fecha en todos los puntos para mantener trazabilidad
     const labels = top.map((v, i) => {
       if (v.video_title) {
         return truncate(v.video_title, 14);
       } else if (v.report_date) {
-        const dayOnly = String(v.report_date).split('T')[0].slice(-2); // Solo día (DD)
-        return isAggregate && i % 3 !== 0 ? '' : dayOnly;
+        const fullDate = formatDateAxisLabel(v.report_date); // DD mes YYYY
+        return fullDate;
       }
       return 'Video';
     });

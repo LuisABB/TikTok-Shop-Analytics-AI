@@ -6,35 +6,50 @@ const DashboardPage = (() => {
   async function init() {
     const { start, end } = getDateFilter();
     try {
-      const [summary, trend, diagnostics] = await Promise.all([
+      const [summary, trend, orderTrend, diagnostics] = await Promise.all([
         API.getDashboardSummary({ start, end }),
         API.getGMVTrend({ start, end }),
+        API.getOrderGMVTrend({ start, end }),
         API.getDiagnostics({ start, end }),
       ]);
+      const useOrders = summary.orders && summary.orders.has_data;
       renderKPIs(summary);
-      renderGMVTrend(trend);
-      renderFunnel(summary.funnel);
-      renderChannelMix(summary);
+      renderGMVTrend(useOrders ? orderTrend : trend, useOrders);
+      renderFunnel(summary.funnel, useOrders ? summary.orders.orders : null);
+      renderChannelMix(summary, useOrders);
       renderDiagnostics(diagnostics);
     } catch (e) {
       showToast('Error cargando el dashboard: ' + e.message, 'error');
     }
   }
 
-  function renderKPIs({ sales }) {
-    document.getElementById('kpi-gmv').textContent       = fmt.currency(sales.gmv);
-    document.getElementById('kpi-orders').textContent    = fmt.number(sales.orders);
-    document.getElementById('kpi-customers').textContent = fmt.number(sales.customers);
-    document.getElementById('kpi-aov').textContent       = fmt.currency(sales.aov);
+  function renderKPIs({ sales, orders }) {
+    // Preferir datos de órdenes reales cuando estén disponibles (has_data = true)
+    const useOrders = orders && orders.has_data;
+    const data      = useOrders ? orders : sales;
+
+    document.getElementById('kpi-gmv').textContent       = fmt.currency(data.gmv);
+    document.getElementById('kpi-orders').textContent    = fmt.number(data.orders);
+    document.getElementById('kpi-customers').textContent = fmt.number(data.customers);
+    document.getElementById('kpi-aov').textContent       = fmt.currency(data.aov);
+
+    // Badge de fuente de datos (si existe el elemento en el HTML)
+    const badge = document.getElementById('kpi-data-source');
+    if (badge) {
+      badge.textContent = useOrders ? '📦 Pedidos reales' : '📊 Métricas TikTok';
+      badge.title       = useOrders
+        ? `GMV y pedidos calculados desde ${data.orders} órdenes reales importadas`
+        : 'Basado en reportes agregados de TikTok Shop';
+    }
   }
 
-  function renderGMVTrend(trend) {
+  function renderGMVTrend(trend, useOrders = false) {
     const categories = trend.map(r => r.date);
     const values     = trend.map(r => r.gmv);
     mountChart('chart-gmv-trend', {
       ...defaultChartOptions(),
       chart:  { ...defaultChartOptions().chart, type: 'area', height: 240 },
-      series: [{ name: 'GMV', data: values }],
+      series: [{ name: useOrders ? 'GMV (Pedidos)' : 'GMV', data: values }],
       xaxis:  { categories, labels: { rotate: -30, style: { fontSize: '11px' } } },
       yaxis:  { labels: { formatter: v => '$' + fmt.number(v) } },
       fill:   { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: .4, opacityTo: .05 } },
@@ -44,14 +59,18 @@ const DashboardPage = (() => {
     });
   }
 
-  function renderFunnel({ impressions, clicks, cart, orders, ctr, cart_rate, purchase_rate, overall_cvr }) {
+  function renderFunnel({ impressions, clicks, cart, orders, ctr, cart_rate, purchase_rate, overall_cvr }, realOrders = null) {
     const container = document.getElementById('funnel-container');
     if (!container) return;
+    const effectiveOrders = realOrders != null ? realOrders : orders;
+    const effectivePurchaseRate = realOrders != null
+      ? (cart > 0 ? (realOrders / cart) * 100 : null)
+      : purchase_rate;
     const steps = [
       { label: 'Impresiones',   value: fmt.number(impressions), rate: null },
       { label: 'Clics',         value: fmt.number(clicks),      rate: ctr         ? fmt.percent(ctr)          : null, rateLabel: 'CTR' },
       { label: 'Carrito',       value: fmt.number(cart),        rate: cart_rate   ? fmt.percent(cart_rate)   : null, rateLabel: 'Clic→Carrito' },
-      { label: 'Pedidos',       value: fmt.number(orders),      rate: purchase_rate ? fmt.percent(purchase_rate) : null, rateLabel: 'Carrito→Compra' },
+      { label: 'Pedidos',       value: fmt.number(effectiveOrders), rate: effectivePurchaseRate ? fmt.percent(effectivePurchaseRate) : null, rateLabel: 'Carrito→Compra' },
     ];
     container.innerHTML = steps.map((s, i) => `
       <div class="funnel-step ${i < steps.length - 1 ? 'border-bottom' : ''}">
@@ -67,7 +86,40 @@ const DashboardPage = (() => {
     }
   }
 
-  function renderChannelMix({ video, live, search }) {
+  function renderChannelMix({ video, live, search, orders }, useOrders = false) {
+    if (useOrders && orders && orders.channels) {
+      const channels = orders.channels;
+      const videoVal = parseFloat(channels.Videos?.gmv || channels.Video?.gmv || 0);
+      const liveVal  = parseFloat(channels.LIVE?.gmv || channels.Live?.gmv || 0);
+      const searchVal = parseFloat(
+        channels['Product cards']?.gmv ||
+        channels['Product Cards']?.gmv ||
+        channels.Busqueda?.gmv ||
+        channels.Búsqueda?.gmv ||
+        channels.Search?.gmv ||
+        0
+      );
+
+      const values = [videoVal, liveVal, searchVal];
+      if (values.every(v => v === 0)) {
+        document.getElementById('chart-channel-mix').innerHTML = '<p class="text-center text-muted py-5 small">Sin datos de canales aún.</p>';
+        return;
+      }
+
+      mountChart('chart-channel-mix', {
+        ...defaultChartOptions(),
+        chart:  { type: 'donut', height: 240 },
+        series: values,
+        labels: ['Video', 'LIVE', 'Búsqueda'],
+        legend: { position: 'bottom' },
+        plotOptions: { pie: { donut: { labels: { show: true, total: { show: true, label: 'GMV' } } } } },
+        dataLabels: { formatter: (val) => val.toFixed(1) + '%' },
+        tooltip: { y: { formatter: (v => '$' + fmt.number(v)) } },
+        colors: [CHART_COLORS.red, CHART_COLORS.teal, CHART_COLORS.blue],
+      });
+      return;
+    }
+
     const gmvValues = [
       parseFloat(video.gmv  || 0),
       parseFloat(live.gmv   || 0),

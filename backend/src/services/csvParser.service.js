@@ -302,6 +302,46 @@ const EXACT_MAP = {
   'usuario que agrego al carrito': 'add_to_cart_users',
   'clics para agregar al carrito': 'add_to_cart',
   'clics unicos':                  'unique_clicks',
+
+  // Order List (Todo pedido) — columnas del export de órdenes individuales
+  'order id':                         'order_id',
+  'order status':                     'order_status',
+  'order substatus':                  'order_substatus',
+  'cancelation return type':          'cancel_type',
+  'normal or pre order':              'order_type',
+  'sku id':                           'sku_id',
+  'seller sku':                       'seller_sku',
+  'variation':                        'variation',
+  'quantity':                         'quantity',
+  'sku unit original price':          'unit_price',
+  'sku subtotal before discount':     'subtotal_before_discount',
+  'sku platform discount':            'platform_discount',
+  'sku seller discount':              'seller_discount',
+  'sku subtotal after discount':      'subtotal_after_discount',
+  'shipping fee after discount':      'shipping_fee',
+  'original shipping fee':            'original_shipping_fee',
+  'order amount':                     'order_amount',
+  'order refund amount':              'refund_amount',
+  'created time':                     'order_created_at',
+  'paid time':                        'paid_at',
+  'rts time':                         'rts_at',
+  'shipped time':                     'shipped_at',
+  'delivered time':                   'delivered_at',
+  'cancelled time':                   'cancelled_at',
+  'cancel by':                        'cancel_by',
+  'cancel reason':                    'cancel_reason',
+  'fulfillment type':                 'fulfillment_type',
+  'warehouse name':                   'warehouse_name',
+  'buyer username':                   'buyer_username',
+  'buyer message':                    'buyer_message',
+  'order channel':                    'order_channel',
+  'creator handle':                   'creator_handle',
+  'payment method':                   'payment_method',
+  'tracking id':                      'tracking_id',
+  'delivery option type':             'delivery_option_type',
+  'delivery option':                  'delivery_option',
+  'shipping provider name':           'shipping_provider',
+  'seller note':                      'seller_note',
 };
 
 /**
@@ -337,8 +377,9 @@ function resolveColumn(header) {
  * Limpia y convierte un valor de celda CSV a su tipo correcto.
  */
 // Patrón de cadena de fecha — no convertir a número
-// Cubre: YYYY-MM-DD, YYYY/MM/DD, DD/MM/YYYY, MM/DD/YYYY, DD-MM-YYYY (con hora opcional)
-const DATE_STRING_RE = /^\d{4}[-/]\d{1,2}[-/]\d{1,2}(\s\d{1,2}:\d{2}(:\d{2})?)?$|^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/;
+// Cubre: YYYY-MM-DD, YYYY/MM/DD, DD/MM/YYYY, MM/DD/YYYY, DD-MM-YYYY
+// y las variantes con hora (incluye AM/PM del export de órdenes TikTok)
+const DATE_STRING_RE = /^\d{4}[-/]\d{1,2}[-/]\d{1,2}(\s\d{1,2}:\d{2}(:\d{2})?)?$|^\d{1,2}[-/]\d{1,2}[-/]\d{4}(\s+\d{1,2}:\d{2}(:\d{2})?(\s*[AP]M)?)?$/i;
 
 function cleanValue(raw) {
   if (raw === null || raw === undefined) return null;
@@ -356,8 +397,17 @@ function cleanValue(raw) {
     return isNaN(num) ? null : num / 100;
   }
 
-  // Eliminar símbolo de moneda (incluye prefijo "MX") y separadores de miles
-  const cleaned = str.replace(/[A-Z]{0,3}[$€£¥]/g, '').replace(/,(?=\d{3})/g, '').replace(',', '.');
+  // IDs largos (≥16 dígitos): preservar como string para no perder precisión
+  // (Number.MAX_SAFE_INTEGER tiene 16 dígitos; IDs de TikTok tienen 18-19)
+  if (/^\d{16,}$/.test(str)) return str;
+
+  // Eliminar prefijo de código de moneda ISO 4217 (p.ej. "MXN 3,121.71" → "3,121.71")
+  // y símbolos de moneda ($, €, £, ¥ con hasta 3 letras previas como "MX$")
+  const cleaned = str
+    .replace(/^[A-Z]{2,3}\s+/, '')       // "MXN ", "USD ", "EUR " al inicio
+    .replace(/[A-Z]{0,3}[$€£¥]/g, '')   // "$", "MX$", "€", etc.
+    .replace(/,(?=\d{3})/g, '')          // separadores de miles: "3,121" → "3121"
+    .replace(',', '.');                   // coma decimal → punto
   const num = parseFloat(cleaned);
   if (!isNaN(num)) return num;
 
@@ -517,11 +567,26 @@ function parseDate(raw) {
     if (!isNaN(d.getTime())) return d;
   }
 
-  // DD/MM/YYYY (formato europeo/español de TikTok Shop — p.ej. "01/05/2026" = 1 de mayo)
-  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  // XX/XX/YYYY con hora y AM/PM opcionales.
+  // Si el 2° componente > 12 → inequívocamente M/D/YYYY (export US de órdenes TikTok).
+  // Si el 1° componente > 12 → inequívocamente D/M/YYYY (español).
+  // Ambos ≤ 12 → asumir D/M/YYYY (retrocompatibilidad con reportes en español).
+  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(\s+.+)?$/i);
   if (m) {
-    const d = new Date(Date.UTC(+m[3], +m[2] - 1, +m[1]));
-    if (!isNaN(d.getTime())) return d;
+    const p1 = +m[1], p2 = +m[2], year = +m[3], hasTime = !!m[4];
+    if (p2 > 12) {
+      // M/D/YYYY — mes=p1, día=p2 (p.ej. "06/24/2026 10:09:42 PM" = 24 jun)
+      if (hasTime) {
+        const d = new Date(str); // el parser nativo maneja AM/PM
+        if (!isNaN(d.getTime())) return d;
+      }
+      const d = new Date(Date.UTC(year, p1 - 1, p2));
+      if (!isNaN(d.getTime())) return d;
+    } else {
+      // D/M/YYYY (español) o ambiguo — mantener comportamiento original
+      const d = new Date(Date.UTC(year, p2 - 1, p1));
+      if (!isNaN(d.getTime())) return d;
+    }
   }
 
   // DD-MM-YYYY

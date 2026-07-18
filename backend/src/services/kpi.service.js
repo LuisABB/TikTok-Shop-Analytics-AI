@@ -317,6 +317,126 @@ async function getServiceKPIs(startDate, endDate) {
   };
 }
 
+// ── KPIs desde órdenes reales (Order List) ────────────────────────────────────
+// Orden válida = pagada (paid_at IS NOT NULL) y no cancelada.
+async function getOrderKPIs(startDate, endDate) {
+  const dateFilter = buildDateFilter(startDate, endDate);
+  const paidFilter = dateFilter ? { gte: dateFilter.gte, lte: dateFilter.lte } : undefined;
+
+  const baseWhere = `status != 'Cancelado' AND paid_at IS NOT NULL`;
+  const dateWhereRaw = paidFilter
+    ? prisma.$queryRaw`AND paid_at >= ${paidFilter.gte ?? new Date('2000-01-01')} AND paid_at <= ${paidFilter.lte ?? new Date('2099-12-31')}`
+    : prisma.$queryRaw``;
+
+  const [agg, distinctCounts] = await Promise.all([
+    prisma.order.aggregate({
+      where: {
+        status:  { not: 'Cancelado' },
+        paid_at: { not: null },
+        ...(paidFilter ? { paid_at: paidFilter } : {}),
+      },
+      _sum:   { order_amount: true, refund_amount: true },
+      _count: { order_id: true },
+    }),
+    (async () => {
+      const args = [
+        'Cancelado',
+        ...(paidFilter ? [paidFilter.gte ?? new Date('2000-01-01'), paidFilter.lte ?? new Date('2099-12-31')] : []),
+      ];
+      if (paidFilter) {
+        return prisma.$queryRaw`
+          SELECT
+            COUNT(DISTINCT order_id)::int        AS orders_count,
+            COUNT(DISTINCT buyer_username)::int   AS customers_count
+          FROM orders
+          WHERE status != 'Cancelado'
+            AND paid_at IS NOT NULL
+            AND paid_at >= ${paidFilter.gte ?? new Date('2000-01-01')}
+            AND paid_at <= ${paidFilter.lte ?? new Date('2099-12-31')}
+        `;
+      }
+      return prisma.$queryRaw`
+        SELECT
+          COUNT(DISTINCT order_id)::int        AS orders_count,
+          COUNT(DISTINCT buyer_username)::int   AS customers_count
+        FROM orders
+        WHERE status != 'Cancelado'
+          AND paid_at IS NOT NULL
+      `;
+    })(),
+  ]);
+
+  const gmv       = toNum(agg._sum.order_amount)  || 0;
+  const refunds   = toNum(agg._sum.refund_amount) || 0;
+  const orders    = Number(distinctCounts[0]?.orders_count    ?? 0);
+  const customers = Number(distinctCounts[0]?.customers_count ?? 0);
+  const aovVal    = orders > 0 ? gmv / orders : 0;
+
+  // Desglose por canal
+  const channelBreakdown = await prisma.order.groupBy({
+    by:    ['order_channel'],
+    where: {
+      status:  { not: 'Cancelado' },
+      paid_at: { not: null },
+      ...(paidFilter ? { paid_at: paidFilter } : {}),
+    },
+    _sum:   { order_amount: true },
+    _count: { order_id: true },
+  });
+
+  const channels = {};
+  for (const c of channelBreakdown) {
+    const key = c.order_channel || 'Desconocido';
+    channels[key] = {
+      gmv:    toNum(c._sum.order_amount) || 0,
+      orders: c._count.order_id,
+    };
+  }
+
+  return { gmv, orders, customers, aov: aovVal, refunds, channels, has_data: orders > 0 };
+}
+
+// ── Tendencia GMV diaria desde órdenes reales ─────────────────────────────────
+async function getOrderGMVTrend(startDate, endDate) {
+  const dateFilter = buildDateFilter(startDate, endDate);
+  const paidFilter = dateFilter ? { gte: dateFilter.gte, lte: dateFilter.lte } : undefined;
+
+  let rows;
+  if (paidFilter) {
+    rows = await prisma.$queryRaw`
+      SELECT
+        DATE(paid_at) AS date,
+        COUNT(DISTINCT order_id)::int AS orders,
+        SUM(order_amount)             AS gmv
+      FROM orders
+      WHERE status != 'Cancelado'
+        AND paid_at IS NOT NULL
+        AND paid_at >= ${paidFilter.gte ?? new Date('2000-01-01')}
+        AND paid_at <= ${paidFilter.lte ?? new Date('2099-12-31')}
+      GROUP BY DATE(paid_at)
+      ORDER BY date ASC
+    `;
+  } else {
+    rows = await prisma.$queryRaw`
+      SELECT
+        DATE(paid_at) AS date,
+        COUNT(DISTINCT order_id)::int AS orders,
+        SUM(order_amount)             AS gmv
+      FROM orders
+      WHERE status != 'Cancelado'
+        AND paid_at IS NOT NULL
+      GROUP BY DATE(paid_at)
+      ORDER BY date ASC
+    `;
+  }
+
+  return rows.map(r => ({
+    date:   r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date),
+    orders: Number(r.orders) || 0,
+    gmv:    toNum(r.gmv)     || 0,
+  }));
+}
+
 // ── Fechas con datos importados ────────────────────────────────────────────────
 async function getAvailableDates() {
   const rows = await prisma.$queryRaw`
@@ -330,8 +450,7 @@ async function getAvailableDates() {
       UNION SELECT report_date FROM video_metrics
       UNION SELECT report_date FROM live_metrics
       UNION SELECT report_date FROM service_metrics
-      UNION SELECT report_date FROM channel_performance
-    ) AS all_dates
+      UNION SELECT report_date FROM channel_performance      UNION SELECT paid_at FROM orders WHERE paid_at IS NOT NULL    ) AS all_dates
     ORDER BY date ASC
   `;
 
@@ -372,6 +491,8 @@ module.exports = {
   getSearchKPIs,
   getTopSearchProducts,
   getServiceKPIs,
+  getOrderKPIs,
+  getOrderGMVTrend,
   getAvailableDates,
   getFullSummary,
 };

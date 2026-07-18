@@ -23,6 +23,10 @@ const API = {
   getDiagnostics:     (params = {}) => API._fetch(`/dashboard/diagnostics${buildQuery(params)}`),
   getAvailableDates:  ()             => API._fetch('/dashboard/available-dates'),
 
+  // Órdenes reales (Order List — "Todo pedido")
+  getOrderKPIs:     (params = {}) => API._fetch(`/orders/kpis${buildQuery(params)}`),
+  getOrderGMVTrend: (params = {}) => API._fetch(`/orders/gmv-trend${buildQuery(params)}`),
+
   // Productos
   getTopProducts:          (params = {}) => API._fetch(`/products/top${buildQuery(params)}`),
   getProductsWithoutSales: (params = {}) => API._fetch(`/products/no-sales${buildQuery(params)}`),

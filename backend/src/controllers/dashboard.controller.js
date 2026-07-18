@@ -4,14 +4,15 @@ const diagnostic = require('../services/diagnostic.service');
 
 async function getExecutiveSummary(req, res) {
   const { start, end } = req.query;
-  const [sales, funnel, video, live, search] = await Promise.all([
+  const [sales, funnel, video, live, search, orders] = await Promise.all([
     kpi.getSalesKPIs(start, end),
     kpi.getConversionFunnel(start, end),
     kpi.getVideoKPIs(start, end),
     kpi.getLiveKPIs(start, end),
     kpi.getSearchKPIs(start, end),
+    kpi.getOrderKPIs(start, end),
   ]);
-  res.json({ sales, funnel, video, live, search });
+  res.json({ sales, funnel, video, live, search, orders });
 }
 
 async function getGMVTrend(req, res) {

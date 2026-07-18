@@ -843,6 +843,83 @@ async function handleCreatorProductList(rows, startDate, endDate) {
 
 // ── Router principal de importación ──────────────────────────────────────────
 
+async function handleOrderList(rows) {
+  let saved = 0;
+  const seenOrders = new Set();
+
+  for (const row of rows) {
+    if (!row.order_id) continue;
+
+    // order_id viene como string (protegido de precisión en cleanValue)
+    const orderId = String(row.order_id).trim();
+    if (!orderId) continue;
+
+    // ── Upsert de la orden (una por order_id) ────────────────────────────
+    if (!seenOrders.has(orderId)) {
+      seenOrders.add(orderId);
+
+      const status   = String(row.order_status  || '').trim();
+      const substatus= String(row.order_substatus || '').trim() || null;
+
+      // Normalizar canal: LIVE / Videos / Product cards / unknown
+      const channelRaw = String(row.order_channel || '').trim().toLowerCase();
+      let orderChannel = null;
+      if (channelRaw.includes('live'))          orderChannel = 'LIVE';
+      else if (channelRaw.includes('video'))    orderChannel = 'Videos';
+      else if (channelRaw.includes('product') || channelRaw.includes('card')) orderChannel = 'Product cards';
+      else if (channelRaw)                      orderChannel = row.order_channel;
+
+      const orderData = {
+        status,
+        substatus,
+        cancel_type:      row.cancel_type      ? String(row.cancel_type)      : null,
+        order_type:       row.order_type        ? String(row.order_type)       : null,
+        order_channel:    orderChannel,
+        creator_handle:   row.creator_handle    ? String(row.creator_handle)   : null,
+        buyer_username:   row.buyer_username     ? String(row.buyer_username)   : null,
+        order_amount:     row.order_amount       != null ? row.order_amount     : null,
+        refund_amount:    row.refund_amount      != null ? row.refund_amount    : null,
+        order_created_at: parseDate(row.order_created_at),
+        paid_at:          parseDate(row.paid_at),
+        shipped_at:       parseDate(row.shipped_at),
+        delivered_at:     parseDate(row.delivered_at),
+        cancelled_at:     parseDate(row.cancelled_at),
+        fulfillment_type: row.fulfillment_type   ? String(row.fulfillment_type) : null,
+        warehouse_name:   row.warehouse_name     ? String(row.warehouse_name)   : null,
+        payment_method:   row.payment_method     ? String(row.payment_method)   : null,
+        state:            row.state              ? String(row.state)            : null,
+        city:             row.city               ? String(row.city)             : null,
+      };
+
+      await prisma.order.upsert({
+        where:  { order_id: orderId },
+        update: orderData,
+        create: { order_id: orderId, ...orderData },
+      });
+    }
+
+    // ── Crear item de línea (uno por fila/SKU) ───────────────────────────
+    await prisma.orderItem.create({
+      data: {
+        order_id:             orderId,
+        sku_id:               row.sku_id        ? String(row.sku_id)        : null,
+        seller_sku:           row.seller_sku    ? String(row.seller_sku)    : null,
+        product_name:         row.product_name  ? String(row.product_name)  : null,
+        variation:            row.variation     ? String(row.variation)     : null,
+        quantity:             row.quantity      != null ? Math.round(row.quantity) : null,
+        unit_original_price:  row.unit_price    != null ? row.unit_price    : null,
+        subtotal_before_disc: row.subtotal_before_discount != null ? row.subtotal_before_discount : null,
+        platform_discount:    row.platform_discount != null ? row.platform_discount : null,
+        seller_discount:      row.seller_discount   != null ? row.seller_discount   : null,
+        subtotal_after_disc:  row.subtotal_after_discount != null ? row.subtotal_after_discount : null,
+      },
+    });
+
+    saved++;
+  }
+  return saved;
+}
+
 async function importCSV(req, res) {
   if (!req.file) {
     return res.status(400).json({ error: 'No se recibió ningún archivo CSV.' });
@@ -932,6 +1009,9 @@ async function importCSV(req, res) {
         break;
       case 'CREATOR_PRODUCT_LIST':
         rowsSaved = await handleCreatorProductList(rows, startDate, endDate);
+        break;
+      case 'ORDER_LIST':
+        rowsSaved = await handleOrderList(rows);
         break;
       default:
         cleanup(filePath);

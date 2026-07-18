@@ -9,6 +9,7 @@ router.use('/live',      require('./live.routes'));
 router.use('/seo',       require('./seo.routes'));
 router.use('/ai',        require('./ai.routes'));
 router.use('/analytics', require('./analytics.routes'));
+router.use('/orders',    require('./orders.routes'));
 
 router.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date() }));
 
