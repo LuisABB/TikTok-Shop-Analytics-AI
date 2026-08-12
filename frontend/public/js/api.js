@@ -61,7 +61,14 @@ const API = {
     fd.append('file', file);
     const res = await fetch(`${API_BASE}/import`, { method: 'POST', body: fd });
     const data = await res.json();
-    if (!res.ok) throw Object.assign(new Error(data.error || 'Error al importar'), { status: res.status });
+    if (!res.ok) {
+      const err = Object.assign(new Error(data.error || 'Error al importar'), {
+        status: res.status,
+        debug: data.debug || null,
+        headers: data.headers || null,
+      });
+      throw err;
+    }
     return data;
   },
 };

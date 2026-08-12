@@ -202,6 +202,26 @@ const SIGNATURES = [
  *   candidates: Array<{type, name, score}>
  * } | null}
  */
+/**
+ * Diagnóstico cuando ninguna firma coincide: qué columnas faltan por firma cercana.
+ */
+function explainMissedSignatures(colSet) {
+  return SIGNATURES.map(sig => {
+    const missing = sig.required.filter(req => !colSet.has(req));
+    const present = sig.required.filter(req => colSet.has(req));
+    return {
+      type: sig.type,
+      name: sig.name,
+      missing,
+      present,
+      missingCount: missing.length,
+    };
+  })
+    .filter(s => s.missingCount > 0 && s.present.length > 0)
+    .sort((a, b) => a.missingCount - b.missingCount || b.present.length - a.present.length)
+    .slice(0, 5);
+}
+
 function detectReportType(headers) {
   // Acepta headers ya canónicos (desde csvParser) o headers originales
   // Si son originales, los normaliza internamente
@@ -223,7 +243,14 @@ function detectReportType(headers) {
     candidates.push({ type: sig.type, name: sig.name, score });
   }
 
-  if (candidates.length === 0) return null;
+  if (candidates.length === 0) {
+    const nearMisses = explainMissedSignatures(colSet);
+    console.warn('[detectReportType] Sin coincidencia', {
+      canonical: [...colSet],
+      nearMisses,
+    });
+    return null;
+  }
 
   candidates.sort((a, b) => b.score - a.score);
   const topScore = candidates[0].score;
@@ -231,6 +258,13 @@ function detectReportType(headers) {
   // Ambigüedad: múltiples candidatos con el mismo score máximo
   const tied = candidates.filter(c => c.score === topScore);
   const ambiguous = tied.length > 1;
+
+  console.log('[detectReportType]', {
+    type: tied[0].type,
+    score: topScore,
+    ambiguous,
+    cols: [...colSet].slice(0, 20),
+  });
 
   return {
     type:       tied[0].type,
@@ -241,5 +275,16 @@ function detectReportType(headers) {
   };
 }
 
-module.exports = { detectReportType, normalize };
+function buildDetectionDebug(headers, canonicalHeaders) {
+  const colSet = new Set(canonicalHeaders);
+  const mapping = headers.map((h, i) => `${h} → ${canonicalHeaders[i]}`);
+  return {
+    headers,
+    canonicalHeaders,
+    mapping,
+    nearMisses: explainMissedSignatures(colSet),
+  };
+}
+
+module.exports = { detectReportType, normalize, buildDetectionDebug };
 

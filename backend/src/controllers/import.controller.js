@@ -2,7 +2,7 @@
 const fs      = require('fs');
 const { PrismaClient } = require('@prisma/client');
 const { parseCSV, extractDateRange, parseDate } = require('../services/csvParser.service');
-const { detectReportType }           = require('../services/reportDetector.service');
+const { detectReportType, buildDetectionDebug } = require('../services/reportDetector.service');
 
 const prisma = new PrismaClient();
 
@@ -581,11 +581,11 @@ async function handleVideoPerformanceList(rows) {
     if (!row.video_id) continue;
     
     // Parsear fecha de publicación
-    const publishedAt = parseDate(row.hora || row.start_time || row.published_at);
+    const publishedAt = parseDate(row.date || row.hora || row.start_time || row.published_at);
     if (!publishedAt) continue;
 
     // Parsear productos del campo "Productos" (formato: "Nombre(ID)")
-    const productsField = row.productos || row.products || '';
+    const productsField = row.productos || row.products || row.product_name || '';
     const productMatch = productsField.match(/\((\d+)\)/);
     const productId = productMatch ? productMatch[1] : null;
 
@@ -937,12 +937,22 @@ async function importCSV(req, res) {
       return res.status(422).json({ error: 'El archivo CSV está vacío o no tiene cabeceras.' });
     }
 
+    console.log('[importCSV]', {
+      filename,
+      rows: rows.length,
+      headers: headers.slice(0, 12),
+      canonical: canonicalHeaders.slice(0, 12),
+    });
+
     const detected = detectReportType(canonicalHeaders);
     if (!detected) {
+      const debug = buildDetectionDebug(headers, canonicalHeaders);
+      console.warn('[importCSV] Detección fallida', { filename, debug });
       cleanup(filePath);
       return res.status(422).json({
         error: 'No se pudo identificar el tipo de reporte. Verifica que sea un CSV exportado de TikTok Shop.',
         headers,
+        debug,
       });
     }
 

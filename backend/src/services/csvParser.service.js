@@ -101,7 +101,7 @@ const COLUMN_MAP = [
   { canonical: 'creator_name',     patterns: ['creator name', 'nombre del creador', 'creator', 'author name'] },
   { canonical: 'creator_id',       patterns: ['creator id', 'id del creador'] },
   { canonical: 'author',           patterns: ['author', 'account', 'autor'] },
-  { canonical: 'vv',               patterns: ['vv', 'video views', 'video view', 'reproducciones'] },
+  { canonical: 'vv',               patterns: ['vv', 'video views', 'video view', 'vistas del video', 'reproducciones'] },
   { canonical: 'ctor',             patterns: ['ctor', 'click to order rate', 'click-to-order rate'] },
   { canonical: 'gpm',              patterns: ['gpm', 'gmv per 1000', 'revenue per 1000', 'gmv per mille',
                                                'show gpm', 'watch gpm'] },
@@ -206,7 +206,12 @@ const EXACT_MAP = {
   'clics':   'clicks',       // evita que 'tasa de clics'.includes('clics') lo resuelva como ctr
   'vistas':  'views',        // evita que 'tasa de vistas a clics'.includes('vistas') lo resuelva como ctr
   'vistas de live': 'viewers', // "Vistas de LIVE" = audiencia, no "views" de producto
+  // TikTok renombró "VV" → "Vistas del video" en exports recientes; sin esto cae en 'views'
+  'vistas del video': 'vv',
+  'video views': 'vv',
   'transmisiones live': 'sessions', // "Transmisiones LIVE" = número real de sesiones live del día
+  // "Productos" solo (Video Performance List) — no confundir con "impresiones … de productos"
+  'productos': 'productos',
 
   // Fix Search/SEO — "Espectadores de productos" son impresiones de búsqueda, no live viewers
   'espectadores de productos': 'impressions',

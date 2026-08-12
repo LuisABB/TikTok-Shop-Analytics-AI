@@ -129,6 +129,8 @@ const ImportPage = (() => {
       } catch (e) {
         item.status = 'error';
         item.msg = e.message;
+        item.debug = e.debug || null;
+        console.warn('[ImportPage] Error importando', item.file.name, e.debug || e.message);
         errorCount++;
       }
       renderQueue();
@@ -140,7 +142,19 @@ const ImportPage = (() => {
       resultEl.innerHTML = `<div class="alert alert-success"><i class="bi bi-check-circle-fill me-2"></i><strong>${successCount} CSV importados correctamente.</strong></div>`;
       showToast(`${successCount} archivos importados`, 'success');
     } else {
-      resultEl.innerHTML = `<div class="alert alert-warning"><i class="bi bi-exclamation-triangle-fill me-2"></i><strong>${successCount} importados, ${errorCount} con error.</strong> Revisa los detalles arriba.</div>`;
+      const debugBlocks = fileQueue
+        .filter(q => q.status === 'error' && q.debug)
+        .map(q => {
+          const near = (q.debug.nearMisses || [])
+            .map(n => `${n.type}: faltan [${(n.missing || []).join(', ')}]`)
+            .join('\n');
+          const mapping = (q.debug.mapping || []).slice(0, 15).join('\n');
+          return `<details class="mt-2"><summary class="small fw-semibold">${q.file.name}</summary>
+            <pre class="small bg-light border rounded p-2 mt-1 mb-0" style="max-height:220px;overflow:auto;white-space:pre-wrap">Casi coinciden:\n${near || '(ninguno)'}\n\nMapeo columnas:\n${mapping}</pre>
+          </details>`;
+        })
+        .join('');
+      resultEl.innerHTML = `<div class="alert alert-warning"><i class="bi bi-exclamation-triangle-fill me-2"></i><strong>${successCount} importados, ${errorCount} con error.</strong> Revisa los detalles arriba.${debugBlocks}</div>`;
       showToast(`${successCount} ok · ${errorCount} errores`, 'error');
     }
 
