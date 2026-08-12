@@ -118,6 +118,16 @@ async function handleStoreOverview(rows) {
 async function handleProductList(rows, fallbackDate) {
   let saved = 0;
   const reportDate = fallbackDate || new Date();
+
+  const productIds = [...new Set(
+    rows.map(r => r.product_id).filter(Boolean).map(id => String(id))
+  )];
+  if (productIds.length) {
+    await prisma.productMetric.deleteMany({
+      where: { product_id: { in: productIds } },
+    });
+  }
+
   for (const row of rows) {
     if (!row.product_id) continue;
     await prisma.product.upsert({
@@ -140,24 +150,8 @@ async function handleProductList(rows, fallbackDate) {
     // Save aggregated channel metrics for the report period
     const hasMetrics = row.gmv != null || row.orders != null || row.impressions != null;
     if (hasMetrics) {
-      await prisma.productMetric.upsert({
-        where: { product_id_report_date_channel: {
-          product_id: String(row.product_id),
-          report_date: reportDate,
-          channel: 'all',
-        }},
-        update: {
-          gmv:             row.gmv             ?? undefined,
-          orders:          row.orders          != null ? Math.round(row.orders)      : undefined,
-          customers:       row.customers       != null ? Math.round(row.customers)   : undefined,
-          impressions:     row.impressions     != null ? Math.round(row.impressions) : undefined,
-          views:           row.views           != null ? Math.round(row.views)       : undefined,
-          clicks:          row.clicks          != null ? Math.round(row.clicks)      : undefined,
-          add_to_cart:     row.add_to_cart     != null ? Math.round(row.add_to_cart) : undefined,
-          conversion_rate: row.conversion_rate ?? undefined,
-          ctr:             row.ctr             ?? undefined,
-        },
-        create: {
+      await prisma.productMetric.create({
+        data: {
           product_id:      String(row.product_id),
           report_date:     reportDate,
           channel:         'all',
@@ -182,17 +176,29 @@ async function handleProductList(rows, fallbackDate) {
 /**
  * Handler para Product Traffic Key Metrics - Reporte completo con métricas avanzadas
  * Incluye: métricas únicas, embudo completo, datos fiscales, reembolsos
+ * Guarda canal "all" (Todo) + desglose live / video / product_card / affiliate.
+ * Reemplaza métricas previas del producto (siempre la última importación).
  */
 async function handleProductTrafficKeyMetrics(rows, fallbackDate) {
   let saved = 0;
   const reportDate = fallbackDate || new Date();
-  
+  const CHANNELS = ['all', 'live', 'video', 'product_card', 'affiliate'];
+
+  const productIds = [...new Set(
+    rows.map(r => r.product_id).filter(Boolean).map(id => String(id))
+  )];
+  if (productIds.length) {
+    await prisma.productMetric.deleteMany({
+      where: { product_id: { in: productIds } },
+    });
+  }
+
   for (const row of rows) {
     if (!row.product_id) continue;
-    
-    // Upsert product info first
+    const productId = String(row.product_id);
+
     await prisma.product.upsert({
-      where: { product_id: String(row.product_id) },
+      where: { product_id: productId },
       update: {
         product_name: row.product_name ?? undefined,
         status:       row.status       ?? undefined,
@@ -200,7 +206,7 @@ async function handleProductTrafficKeyMetrics(rows, fallbackDate) {
         price:        row.price        ?? undefined,
       },
       create: {
-        product_id:   String(row.product_id),
+        product_id:   productId,
         product_name: row.product_name ?? 'Sin nombre',
         status:       row.status       ?? null,
         category:     row.category     ?? null,
@@ -208,96 +214,60 @@ async function handleProductTrafficKeyMetrics(rows, fallbackDate) {
       },
     });
 
-    // Save complete metrics with all extended fields
-    await prisma.productMetric.upsert({
-      where: { product_id_report_date_channel: {
-        product_id: String(row.product_id),
-        report_date: reportDate,
-        channel: 'all',
-      }},
-      update: {
-        // Ventas básicas
-        gmv:                     row.gmv                     ?? undefined,
-        orders:                  row.orders                  != null ? Math.round(row.orders)      : undefined,
-        sku_orders:              row.sku_orders              != null ? Math.round(row.sku_orders)  : undefined,
-        items_sold:              row.items_sold              != null ? Math.round(row.items_sold)  : undefined,
-        customers:               row.customers               != null ? Math.round(row.customers)   : undefined,
-        aov:                     row.aov                     ?? undefined,
-        
-        // Tráfico total
-        impressions:             row.impressions             != null ? Math.round(row.impressions) : undefined,
-        views:                   row.views                   != null ? Math.round(row.views)       : undefined,
-        clicks:                  row.clicks                  != null ? Math.round(row.clicks)      : undefined,
-        add_to_cart:             row.add_to_cart             != null ? Math.round(row.add_to_cart) : undefined,
-        ctr:                     row.ctr                     ?? undefined,
-        add_to_cart_rate:        row.add_to_cart_rate        ?? undefined,
-        ctor:                    row.ctor                    ?? undefined,
-        conversion_rate:         row.conversion_rate         ?? undefined,
-        
-        // Métricas únicas
-        unique_impressions:      row.unique_impressions      != null ? Math.round(row.unique_impressions)      : undefined,
-        unique_clicks:           row.unique_clicks           != null ? Math.round(row.unique_clicks)           : undefined,
-        unique_ctr:              row.unique_ctr              ?? undefined,
-        unique_add_to_cart_users:row.unique_add_to_cart_users!= null ? Math.round(row.unique_add_to_cart_users): undefined,
-        unique_add_to_cart_rate: row.unique_add_to_cart_rate ?? undefined,
-        unique_ctor:             row.unique_ctor             ?? undefined,
-        
-        // Financieras
-        gmv_with_tax:            row.gmv_with_tax            ?? undefined,
-        tax:                     row.tax                     ?? undefined,
-        gmv_with_subsidy:        row.gmv_with_subsidy        ?? undefined,
-        shipping_fees:           row.shipping_fees           ?? undefined,
-        
-        // Devoluciones
-        refunds:                 row.refunds                 ?? undefined,
-        refunded_items:          row.refunded_items          != null ? Math.round(row.refunded_items)     : undefined,
-        refunded_customers:      row.refunded_customers      != null ? Math.round(row.refunded_customers) : undefined,
-      },
-      create: {
-        product_id:              String(row.product_id),
-        report_date:             reportDate,
-        channel:                 'all',
-        
-        // Ventas básicas
-        gmv:                     row.gmv                     ?? null,
-        orders:                  row.orders                  != null ? Math.round(row.orders)      : null,
-        sku_orders:              row.sku_orders              != null ? Math.round(row.sku_orders)  : null,
-        items_sold:              row.items_sold              != null ? Math.round(row.items_sold)  : null,
-        customers:               row.customers               != null ? Math.round(row.customers)   : null,
-        aov:                     row.aov                     ?? null,
-        
-        // Tráfico total
-        impressions:             row.impressions             != null ? Math.round(row.impressions) : null,
-        views:                   row.views                   != null ? Math.round(row.views)       : null,
-        clicks:                  row.clicks                  != null ? Math.round(row.clicks)      : null,
-        add_to_cart:             row.add_to_cart             != null ? Math.round(row.add_to_cart) : null,
-        ctr:                     row.ctr                     ?? null,
-        add_to_cart_rate:        row.add_to_cart_rate        ?? null,
-        ctor:                    row.ctor                    ?? null,
-        conversion_rate:         row.conversion_rate         ?? null,
-        
-        // Métricas únicas
-        unique_impressions:      row.unique_impressions      != null ? Math.round(row.unique_impressions)      : null,
-        unique_clicks:           row.unique_clicks           != null ? Math.round(row.unique_clicks)           : null,
-        unique_ctr:              row.unique_ctr              ?? null,
-        unique_add_to_cart_users:row.unique_add_to_cart_users!= null ? Math.round(row.unique_add_to_cart_users): null,
-        unique_add_to_cart_rate: row.unique_add_to_cart_rate ?? null,
-        unique_ctor:             row.unique_ctor             ?? null,
-        
-        // Financieras
-        gmv_with_tax:            row.gmv_with_tax            ?? null,
-        tax:                     row.tax                     ?? null,
-        gmv_with_subsidy:        row.gmv_with_subsidy        ?? null,
-        shipping_fees:           row.shipping_fees           ?? null,
-        
-        // Devoluciones
-        refunds:                 row.refunds                 ?? null,
-        refunded_items:          row.refunded_items          != null ? Math.round(row.refunded_items)     : null,
-        refunded_customers:      row.refunded_customers      != null ? Math.round(row.refunded_customers) : null,
-      },
-    });
+    const channelRows = [];
+    if (row.channels && typeof row.channels === 'object') {
+      for (const ch of CHANNELS) {
+        if (row.channels[ch]) {
+          channelRows.push({ channel: ch, data: { ...row, ...row.channels[ch] } });
+        }
+      }
+    }
+    if (!channelRows.length) {
+      channelRows.push({ channel: 'all', data: row });
+    }
 
-    saved++;
+    for (const { channel, data } of channelRows) {
+      await prisma.productMetric.create({
+        data: {
+          product_id:  productId,
+          report_date: reportDate,
+          channel,
+
+          gmv:                     data.gmv                     ?? null,
+          orders:                  data.orders                  != null ? Math.round(data.orders)      : null,
+          sku_orders:              data.sku_orders              != null ? Math.round(data.sku_orders)  : null,
+          items_sold:              data.items_sold              != null ? Math.round(data.items_sold)  : null,
+          customers:               data.customers               != null ? Math.round(data.customers)   : null,
+          aov:                     data.aov                     ?? null,
+
+          impressions:             data.impressions             != null ? Math.round(data.impressions) : null,
+          views:                   data.views                   != null ? Math.round(data.views)       : null,
+          clicks:                  data.clicks                  != null ? Math.round(data.clicks)      : null,
+          add_to_cart:             data.add_to_cart             != null ? Math.round(data.add_to_cart) : null,
+          ctr:                     data.ctr                     ?? null,
+          add_to_cart_rate:        data.add_to_cart_rate        ?? null,
+          ctor:                    data.ctor                    ?? null,
+          conversion_rate:         data.conversion_rate         ?? null,
+
+          unique_impressions:      data.unique_impressions      != null ? Math.round(data.unique_impressions)      : null,
+          unique_clicks:           data.unique_clicks           != null ? Math.round(data.unique_clicks)           : null,
+          unique_ctr:              data.unique_ctr              ?? null,
+          unique_add_to_cart_users:data.unique_add_to_cart_users!= null ? Math.round(data.unique_add_to_cart_users): null,
+          unique_add_to_cart_rate: data.unique_add_to_cart_rate ?? null,
+          unique_ctor:             data.unique_ctor             ?? null,
+
+          gmv_with_tax:            data.gmv_with_tax            ?? null,
+          tax:                     data.tax                     ?? null,
+          gmv_with_subsidy:        data.gmv_with_subsidy        ?? null,
+          shipping_fees:           data.shipping_fees           ?? null,
+
+          refunds:                 data.refunds                 ?? null,
+          refunded_items:          data.refunded_items          != null ? Math.round(data.refunded_items)     : null,
+          refunded_customers:      data.refunded_customers      != null ? Math.round(data.refunded_customers) : null,
+        },
+      });
+      saved++;
+    }
   }
   return saved;
 }
@@ -968,9 +938,13 @@ async function importCSV(req, res) {
       detected.ambiguous = false;
     }
 
-    // Usar rango de fechas extraído de metadatos (header del CSV) o filas
+    // Usar rango de fechas extraído de metadatos (header del CSV) o filas.
+    // Para listados de producto (periodo agregado) se usa la ÚLTIMA fecha del rango
+    // y se reemplazan métricas previas del producto en el handler.
     const { startDate, endDate } = dateRange || { startDate: null, endDate: null };
-    const fallbackDate = startDate || new Date();
+    const fallbackDate = (detected.type === 'PRODUCT_TRAFFIC_KEY_METRICS'
+      ? (endDate || startDate)
+      : (startDate || endDate)) || new Date();
     let rowsSaved = 0;
 
     switch (detected.type) {

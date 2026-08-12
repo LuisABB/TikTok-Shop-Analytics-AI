@@ -203,6 +203,7 @@ const EXACT_MAP = {
   'producto':'product_name', // "Producto" solo, columna de nombre de producto
   'alias':   'author',
   'gmv':     'gmv',          // evita que 'gmv por cliente prom'.includes('gmv') lo resuelva como aov
+  'rango de gmv': 'gmv_range', // no confundir con GMV numérico en Product Traffic Key Metrics
   'clics':   'clicks',       // evita que 'tasa de clics'.includes('clics') lo resuelva como ctr
   'vistas':  'views',        // evita que 'tasa de vistas a clics'.includes('vistas') lo resuelva como ctr
   'vistas de live': 'viewers', // "Vistas de LIVE" = audiencia, no "views" de producto
@@ -438,6 +439,32 @@ const METADATA_PATTERNS = [
 const DATA_CELL_RE = /^(-|[\d.]+%?|[\d].*sec|[A-Z][a-z]+ \d+, \d{4})$/;
 
 /**
+ * Detecta la fila de agrupación por canal de reportes Product Traffic Key Metrics:
+ * "Todo", "LIVE del vendedor", "Video del vendedor", "Tarjeta…", "Afiliado".
+ */
+function isChannelGroupRow(row) {
+  const nonEmpty = row.map(c => String(c || '').trim()).filter(Boolean);
+  if (nonEmpty.length <= 10) return false;
+  const uniqueValues = new Set(nonEmpty.map(c => c.toLowerCase()));
+  if (uniqueValues.size > 8) return false;
+  const repeatedLabels = /^(todo|all|live|video|afiliado|affiliate|tarjeta|card|seller|creator|vendedor|product)/i;
+  const mostAreLabels = nonEmpty.filter(c => repeatedLabels.test(c)).length / nonEmpty.length;
+  return mostAreLabels > 0.5;
+}
+
+/** Normaliza etiqueta de canal del CSV → clave estable en BD. */
+function normalizeChannelLabel(label) {
+  const n = normalize(String(label || ''));
+  if (!n) return null; // columnas de identidad (nombre, id, status)
+  if (n === 'todo' || n === 'all' || n === 'total') return 'all';
+  if (n.includes('live')) return 'live';
+  if (n.includes('video')) return 'video';
+  if (n.includes('tarjeta') || n.includes('card') || n.includes('product card')) return 'product_card';
+  if (n.includes('afiliado') || n.includes('affiliate') || n.includes('creator')) return 'affiliate';
+  return null;
+}
+
+/**
  * Devuelve true si la fila es vacía, de metadatos, o un bloque de datos
  * de resumen que debe ignorarse antes de llegar a la cabecera real.
  *
@@ -461,24 +488,51 @@ function isMetadataRow(row) {
     if (nonEmpty.length > 0 && nonEmpty.every(c => DATA_CELL_RE.test(c))) {
       return true;
     }
-    
-    // 4. Detectar filas de sub-headers agrupados (ej: "Todo", "LIVE del vendedor", "Afiliado")
-    //    Estas filas tienen pocas palabras únicas repetidas muchas veces
-    if (nonEmpty.length > 10) {
-      const uniqueValues = new Set(nonEmpty);
-      // Si hay más de 10 celdas no-vacías pero solo 1-5 valores únicos,
-      // probablemente son categorías repetidas, no headers reales
-      if (uniqueValues.size <= 5) {
-        const repeatedLabels = /^(todo|live|video|afiliado|tarjeta|seller|creator|vendedor|product)/i;
-        const mostAreLabels = nonEmpty.filter(c => repeatedLabels.test(c)).length / nonEmpty.length;
-        if (mostAreLabels > 0.5) {
-          return true;
-        }
-      }
-    }
   }
 
+  // 4. Sub-headers agrupados por canal (se capturan aparte, pero siguen siendo "metadata")
+  if (isChannelGroupRow(row)) return true;
+
   return false;
+}
+
+/**
+ * Construye el objeto de fila.
+ * - first-wins en claves canónicas (evita que "Tarjeta" pise el "Todo")
+ * - si hay fila de canales, añade `channels: { all, live, video, product_card, affiliate }`
+ */
+function buildRowObject(row, canonicalHeaders, channelLabels) {
+  const obj = {};
+  const channels = {};
+
+  canonicalHeaders.forEach((col, i) => {
+    if (!col || col === 'empty_column') return;
+    const value = cleanValue(row[i]);
+    const ch = channelLabels ? normalizeChannelLabel(channelLabels[i]) : null;
+
+    if (channelLabels) {
+      if (ch == null) {
+        // Identidad / sin canal: solo primera ocurrencia en raíz
+        if (obj[col] === undefined) obj[col] = value;
+        return;
+      }
+      if (!channels[ch]) channels[ch] = {};
+      if (channels[ch][col] === undefined) channels[ch][col] = value;
+      // Raíz = sección Todo (all), first-wins
+      if (ch === 'all' && obj[col] === undefined) obj[col] = value;
+      return;
+    }
+
+    // Sin fila de canales: first-wins (no dejar que columnas repetidas pisen el total)
+    if (obj[col] === undefined) obj[col] = value;
+  });
+
+  if (channelLabels && Object.keys(channels).length) {
+    // Todo (all) siempre sobrescribe la raíz para métricas (evita ruido de columnas de identidad)
+    if (channels.all) Object.assign(obj, channels.all);
+    obj.channels = channels;
+  }
+  return obj;
 }
 
 /**
@@ -494,6 +548,7 @@ async function parseCSV(csvContent) {
     const rows = [];
     let headers = [];
     let canonicalHeaders = [];
+    let channelLabels = null; // fila "Todo / LIVE / Video / Tarjeta…" si existe
     const metadataLines = []; // Capturar líneas de metadatos
 
     const stream = Readable.from([csvContent]);
@@ -512,6 +567,7 @@ async function parseCSV(csvContent) {
         // Saltar filas vacías y de metadatos hasta encontrar la cabecera real
         if (isMetadataRow(row)) {
           metadataLines.push(row); // Guardar para extraer fechas
+          if (isChannelGroupRow(row)) channelLabels = row;
           return;
         }
         headers = row;
@@ -539,11 +595,7 @@ async function parseCSV(csvContent) {
         
         return;
       }
-      const obj = {};
-      canonicalHeaders.forEach((col, i) => {
-        obj[col] = cleanValue(row[i]);
-      });
-      rows.push(obj);
+      rows.push(buildRowObject(row, canonicalHeaders, channelLabels));
     })
     .on('end', () => {
       // Extraer rango de fechas de metadatos
@@ -573,25 +625,42 @@ function parseDate(raw) {
   }
 
   // XX/XX/YYYY con hora y AM/PM opcionales.
-  // Si el 2° componente > 12 → inequívocamente M/D/YYYY (export US de órdenes TikTok).
-  // Si el 1° componente > 12 → inequívocamente D/M/YYYY (español).
-  // Ambos ≤ 12 → asumir D/M/YYYY (retrocompatibilidad con reportes en español).
+  // - 2° > 12 → M/D/YYYY (export US, ej. 06/24/2026)
+  // - 1° > 12 → D/M/YYYY (español, ej. 24/06/2026)
+  // - Ambiguo + AM/PM → M/D/YYYY (Todo pedido de TikTok Shop usa formato US)
+  // - Ambiguo sin AM/PM → D/M/YYYY (reportes analytics en español)
   m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(\s+.+)?$/i);
   if (m) {
-    const p1 = +m[1], p2 = +m[2], year = +m[3], hasTime = !!m[4];
+    const p1 = +m[1], p2 = +m[2], year = +m[3];
+    const timePart = (m[4] || '').trim();
+    const hasAmPm = /\b[AP]M\b/i.test(timePart);
+
+    let month;
+    let day;
     if (p2 > 12) {
-      // M/D/YYYY — mes=p1, día=p2 (p.ej. "06/24/2026 10:09:42 PM" = 24 jun)
-      if (hasTime) {
-        const d = new Date(str); // el parser nativo maneja AM/PM
+      month = p1; day = p2;
+    } else if (p1 > 12) {
+      month = p2; day = p1;
+    } else if (hasAmPm) {
+      month = p1; day = p2;
+    } else {
+      month = p2; day = p1;
+    }
+
+    if (timePart) {
+      if (hasAmPm) {
+        const d = new Date(`${month}/${day}/${year} ${timePart}`);
         if (!isNaN(d.getTime())) return d;
       }
-      const d = new Date(Date.UTC(year, p1 - 1, p2));
-      if (!isNaN(d.getTime())) return d;
-    } else {
-      // D/M/YYYY (español) o ambiguo — mantener comportamiento original
-      const d = new Date(Date.UTC(year, p2 - 1, p1));
-      if (!isNaN(d.getTime())) return d;
+      const tm = timePart.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (tm) {
+        const d = new Date(year, month - 1, day, +tm[1], +tm[2], +(tm[3] || 0));
+        if (!isNaN(d.getTime())) return d;
+      }
     }
+
+    const d = new Date(Date.UTC(year, month - 1, day));
+    if (!isNaN(d.getTime())) return d;
   }
 
   // DD-MM-YYYY

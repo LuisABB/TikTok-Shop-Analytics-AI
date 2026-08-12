@@ -96,26 +96,71 @@ async function getConversionFunnel(startDate, endDate) {
 // ── Top productos ──────────────────────────────────────────────────────────────
 async function getTopProducts(metric = 'gmv', limit = 10, startDate, endDate) {
   const dateFilter = buildDateFilter(startDate, endDate);
-  const where = dateFilter ? { report_date: dateFilter } : {};
-
-  const allowed = ['gmv', 'orders', 'customers', 'impressions', 'clicks'];
+  const allowed = ['gmv', 'orders', 'customers', 'impressions', 'clicks', 'items_sold'];
   const col = allowed.includes(metric) ? metric : 'gmv';
+
+  // Solo canal "all" (Todo) para no duplicar LIVE+Video+Tarjeta en el total.
+  // Si hay varias fechas, usar la más reciente dentro del filtro.
+  const whereBase = {
+    channel: 'all',
+    ...(dateFilter ? { report_date: dateFilter } : {}),
+  };
+
+  const latest = await prisma.productMetric.findFirst({
+    where: whereBase,
+    orderBy: { report_date: 'desc' },
+    select: { report_date: true },
+  });
+  if (!latest) return [];
+
+  const where = { ...whereBase, report_date: latest.report_date };
 
   const agg = await prisma.productMetric.groupBy({
     by: ['product_id'],
     where,
-    _sum: { gmv: true, orders: true, customers: true, impressions: true, clicks: true, add_to_cart: true },
+    _sum: { gmv: true, orders: true, customers: true, impressions: true, clicks: true, add_to_cart: true, items_sold: true },
     orderBy: { _sum: { [col]: 'desc' } },
     take: limit,
   });
 
-  // Enriquecer con nombre de producto
   const productIds = agg.map(r => r.product_id);
   const products = await prisma.product.findMany({
     where: { product_id: { in: productIds } },
     select: { product_id: true, product_name: true },
   });
   const nameMap = Object.fromEntries(products.map(p => [p.product_id, p.product_name]));
+
+  // Desglose por canal (misma fecha) para la gráfica apilada/agrupada
+  const channelRows = await prisma.productMetric.findMany({
+    where: {
+      product_id: { in: productIds },
+      report_date: latest.report_date,
+      channel: { in: ['all', 'live', 'video', 'product_card'] },
+    },
+    select: {
+      product_id: true,
+      channel: true,
+      gmv: true,
+      orders: true,
+      customers: true,
+      impressions: true,
+      clicks: true,
+      items_sold: true,
+    },
+  });
+
+  const byProductChannel = {};
+  for (const r of channelRows) {
+    if (!byProductChannel[r.product_id]) byProductChannel[r.product_id] = {};
+    byProductChannel[r.product_id][r.channel] = {
+      gmv:          toNum(r.gmv)          || 0,
+      orders:       toNum(r.orders)       || 0,
+      customers:    toNum(r.customers)    || 0,
+      impressions:  toNum(r.impressions)  || 0,
+      clicks:       toNum(r.clicks)       || 0,
+      items_sold:   toNum(r.items_sold)   || 0,
+    };
+  }
 
   return agg.map(r => ({
     product_id:   r.product_id,
@@ -125,23 +170,43 @@ async function getTopProducts(metric = 'gmv', limit = 10, startDate, endDate) {
     customers:    toNum(r._sum.customers)    || 0,
     impressions:  toNum(r._sum.impressions)  || 0,
     clicks:       toNum(r._sum.clicks)       || 0,
+    items_sold:   toNum(r._sum.items_sold)   || 0,
     add_to_cart:  toNum(r._sum.add_to_cart)  || 0,
     conversion_rate: rate(
       toNum(r._sum.orders)      || 0,
       toNum(r._sum.impressions) || 0
     ),
+    report_date: latest.report_date,
+    channels: byProductChannel[r.product_id] || {},
   }));
 }
 
 // ── Productos sin ventas ────────────────────────────────────────────────────────
 async function getProductsWithoutSales(startDate, endDate) {
   const dateFilter = buildDateFilter(startDate, endDate);
-  const where = dateFilter ? { report_date: dateFilter } : {};
+  const whereBase = {
+    channel: 'all',
+    ...(dateFilter ? { report_date: dateFilter } : {}),
+  };
+
+  const latest = await prisma.productMetric.findFirst({
+    where: whereBase,
+    orderBy: { report_date: 'desc' },
+    select: { report_date: true },
+  });
+  if (!latest) return [];
+
+  const where = {
+    ...whereBase,
+    report_date: latest.report_date,
+    impressions: { gt: 0 },
+    orders: { equals: 0 },
+  };
 
   // Productos con impresiones pero 0 pedidos
   const withTraffic = await prisma.productMetric.groupBy({
     by: ['product_id'],
-    where: { ...where, impressions: { gt: 0 }, orders: { equals: 0 } },
+    where,
     _sum: { impressions: true, clicks: true },
     orderBy: { _sum: { impressions: 'desc' } },
     take: 20,
