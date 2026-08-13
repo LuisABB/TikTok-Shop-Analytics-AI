@@ -34,6 +34,7 @@ const API = {
   // Videos
   getVideoKPIs: (params = {}) => API._fetch(`/videos/kpis${buildQuery(params)}`),
   getTopVideos: (params = {}) => API._fetch(`/videos/top${buildQuery(params)}`),
+  getVideoList: (params = {}) => API._fetch(`/videos/list${buildQuery(params)}`),
 
   // LIVE
   getLiveKPIs:     (params = {}) => API._fetch(`/live/kpis${buildQuery(params)}`),

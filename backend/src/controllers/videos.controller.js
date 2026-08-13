@@ -13,4 +13,10 @@ async function getTopVideos(req, res) {
   res.json(data);
 }
 
-module.exports = { getVideoKPIs, getTopVideos };
+async function getVideoList(req, res) {
+  const { limit = 15, start, end, q } = req.query;
+  const data = await kpi.getVideoList(parseInt(limit), start, end, q);
+  res.json(data);
+}
+
+module.exports = { getVideoKPIs, getTopVideos, getVideoList };

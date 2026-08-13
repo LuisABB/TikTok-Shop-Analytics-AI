@@ -4,5 +4,6 @@ const ctrl   = require('../controllers/videos.controller');
 
 router.get('/kpis', ctrl.getVideoKPIs);
 router.get('/top',  ctrl.getTopVideos);
+router.get('/list', ctrl.getVideoList);
 
 module.exports = router;

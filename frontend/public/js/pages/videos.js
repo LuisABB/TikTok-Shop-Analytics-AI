@@ -2,19 +2,8 @@
  * pages/videos.js — Módulo de Performance de Videos.
  */
 const VideosPage = (() => {
-  let tableRows = [];
-  let tableSort = { key: 'vv', dir: 'desc' };
-
-  const TABLE_COLUMNS = [
-    { key: 'label',  type: 'text' },
-    { key: 'author', type: 'text' },
-    { key: 'vv',     type: 'number' },
-    { key: 'gmv',    type: 'number' },
-    { key: 'orders', type: 'number' },
-    { key: 'ctr',    type: 'number' },
-    { key: 'ctor',   type: 'number' },
-    { key: 'gpm',    type: 'number' },
-  ];
+  let videoListQuery = '';
+  let searchTimer = null;
 
   function formatDateAxisLabel(rawDate) {
     const iso = String(rawDate || '').split('T')[0];
@@ -25,105 +14,61 @@ const VideosPage = (() => {
     return `${m[3]} ${monthName} ${m[1]}`;
   }
 
+  function setupVideoIdSearch() {
+    const input = document.getElementById('video-id-search');
+    if (!input || input.dataset.bound === '1') return;
+    input.dataset.bound = '1';
+    input.value = videoListQuery;
+    input.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        videoListQuery = input.value.trim();
+        refreshVideoListChart();
+      }, 300);
+    });
+  }
+
+  async function refreshVideoListChart() {
+    const { start, end } = getDateFilter();
+    const q = videoListQuery;
+    try {
+      const videoList = await API.getVideoList({
+        limit: q ? 50 : 15,
+        start,
+        end,
+        ...(q ? { q } : {}),
+      });
+      renderVideoListChart(videoList, q);
+    } catch (e) {
+      showToast('Error buscando videos: ' + e.message, 'error');
+    }
+  }
+
   async function init() {
     const { start, end } = getDateFilter();
+    const input = document.getElementById('video-id-search');
+    if (input) input.value = videoListQuery;
+    setupVideoIdSearch();
+
     try {
-      const [kpis, videos] = await Promise.all([
+      const q = videoListQuery;
+      const [kpis, videos, videoList] = await Promise.all([
         API.getVideoKPIs({ start, end }),
-        API.getTopVideos({ limit: 100, start, end }), // Aumentado para mostrar todos los días
+        API.getTopVideos({ limit: 100, start, end }),
+        API.getVideoList({
+          limit: q ? 50 : 15,
+          start,
+          end,
+          ...(q ? { q } : {}),
+        }),
       ]);
-      setupTableSorting();
-      tableRows = videos || [];
       renderKPIs(kpis);
       renderTopVideosChart(videos);
       renderRatesChart(videos);
-      renderTable(sortTableRows(tableRows));
+      renderVideoListChart(videoList, q);
     } catch (e) {
       showToast('Error cargando videos: ' + e.message, 'error');
     }
-  }
-
-  function setupTableSorting() {
-    const tbody = document.getElementById('videos-table-body');
-    if (!tbody) return;
-    const table = tbody.closest('table');
-    if (!table) return;
-
-    const headers = Array.from(table.querySelectorAll('thead th'));
-    headers.forEach((th, index) => {
-      const col = TABLE_COLUMNS[index];
-      if (!col) return;
-
-      th.dataset.sortKey = col.key;
-      th.style.cursor = 'pointer';
-      th.title = 'Ordenar';
-
-      if (!th.dataset.sortBound) {
-        th.addEventListener('click', () => {
-          if (tableSort.key === col.key) {
-            tableSort.dir = tableSort.dir === 'asc' ? 'desc' : 'asc';
-          } else {
-            tableSort.key = col.key;
-            tableSort.dir = col.type === 'text' ? 'asc' : 'desc';
-          }
-          updateSortIndicators(headers);
-          renderTable(sortTableRows(tableRows));
-        });
-        th.dataset.sortBound = '1';
-      }
-    });
-
-    updateSortIndicators(headers);
-  }
-
-  function updateSortIndicators(headers) {
-    headers.forEach((th, index) => {
-      const col = TABLE_COLUMNS[index];
-      if (!col) return;
-
-      const base = (th.textContent || '').replace(/[\s▲▼]+$/g, '').trim();
-      const isActive = col.key === tableSort.key;
-      const marker = isActive ? (tableSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
-      th.textContent = base + marker;
-    });
-  }
-
-  function sortTableRows(rows) {
-    const col = TABLE_COLUMNS.find(c => c.key === tableSort.key) || TABLE_COLUMNS[2];
-    const dirFactor = tableSort.dir === 'asc' ? 1 : -1;
-    const arr = [...(rows || [])];
-
-    arr.sort((a, b) => {
-      const av = sortableValue(a, col.key, col.type);
-      const bv = sortableValue(b, col.key, col.type);
-
-      if (av == null && bv == null) return 0;
-      if (av == null) return 1;
-      if (bv == null) return -1;
-
-      if (col.type === 'text') {
-        return String(av).localeCompare(String(bv), 'es', { sensitivity: 'base' }) * dirFactor;
-      }
-      return ((Number(av) || 0) - (Number(bv) || 0)) * dirFactor;
-    });
-
-    return arr;
-  }
-
-  function sortableValue(video, key, type) {
-    if (!video) return null;
-
-    if (key === 'label') {
-      return video.video_title || video.video_id || video.report_date || '';
-    }
-    if (key === 'author') {
-      return video.author || '';
-    }
-
-    const raw = video[key];
-    if (raw === null || raw === undefined || raw === '') return null;
-    if (type === 'number') return Number(raw);
-    return raw;
   }
 
   function renderKPIs(kpis) {
@@ -179,7 +124,7 @@ const VideosPage = (() => {
       : videos.slice(0, 10);
     
     // Mostrar fecha en todos los puntos para mantener trazabilidad
-    const labels = top.map((v, i) => {
+    const labels = top.map((v) => {
       if (v.video_title) {
         return truncate(v.video_title, 14);
       } else if (v.report_date) {
@@ -204,25 +149,114 @@ const VideosPage = (() => {
     });
   }
 
-  function renderTable(videos) {
-    const tbody = document.getElementById('videos-table-body');
+  async function copyVideoId(videoId) {
+    if (!videoId) return;
+    try {
+      await navigator.clipboard.writeText(String(videoId));
+      showToast('ID copiado: ' + videoId, 'success');
+    } catch {
+      showToast('No se pudo copiar el ID', 'error');
+    }
+  }
+
+  function renderVideoListChart(videos, q = '') {
+    const container = document.getElementById('chart-video-list');
+    if (!container) return;
+
     if (!videos.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4 small">Sin datos. Importa "Video Performance Core Stats".</td></tr>';
+      destroyChart('chart-video-list');
+      container.innerHTML = q
+        ? `<div class="text-center text-muted py-5"><i class="bi bi-search fs-1 d-block mb-3 opacity-25"></i><p class="mb-0">Ningún video con ID que contenga "<code style="user-select:all">${escapeHtml(q)}</code>"</p></div>`
+        : '<div class="text-center text-muted py-5"><i class="bi bi-play-btn fs-1 d-block mb-3 opacity-25"></i><p class="mb-0">Sin datos. Importa "Video Performance List".</p></div>';
       return;
     }
-    tbody.innerHTML = videos.map(v => {
-      const label = v.video_title || v.video_id || (v.report_date ? String(v.report_date).split('T')[0] : '—');
-      return `
-      <tr>
-        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${label}">${label}</td>
-        <td class="small text-muted">${v.author || '—'}</td>
-        <td class="text-end num">${fmt.number(v.vv)}</td>
-        <td class="text-end num">${fmt.currency(v.gmv)}</td>
-        <td class="text-end num">${fmt.number(v.orders)}</td>
-        <td class="text-end num">${(v.ctr != null && v.ctr > 0) ? fmt.percent(v.ctr) : '—'}</td>
-        <td class="text-end num">${(v.ctor != null && v.ctor > 0) ? fmt.percent(v.ctor) : '—'}</td>
-        <td class="text-end num">${(v.gpm != null && v.gpm > 0) ? fmt.currency(v.gpm) : '—'}</td>
-      </tr>`;}).join('');
+
+    const allZeroVV = videos.every(v => !v.vv);
+    const useGmv = allZeroVV && videos.some(v => v.gmv > 0);
+    const metricName = useGmv ? 'GMV' : 'Reproducciones';
+    const metricData = videos.map(v => useGmv ? (v.gmv || 0) : (v.vv || 0));
+    // En búsqueda mostrar ID completo (seleccionable vía clic); sin búsqueda truncar título/id
+    const labels = videos.map(v => {
+      if (q) return String(v.video_id || '—');
+      return truncate(v.video_title || v.video_id || 'Video', 28);
+    });
+
+    const titleEl = container.closest('.section-card')?.querySelector('h6');
+    if (titleEl) {
+      const base = useGmv ? 'Top Videos por GMV' : 'Top Videos por Reproducciones';
+      const hint = q
+        ? `<span class="text-muted fw-normal small ms-1">${videos.length} resultado${videos.length === 1 ? '' : 's'}</span>`
+        : '<span class="text-muted fw-normal small ms-1">(clic para copiar ID)</span>';
+      titleEl.innerHTML = `<i class="bi bi-play-btn me-2 text-danger"></i>${base} ${hint}`;
+    }
+
+    mountChart('chart-video-list', {
+      ...defaultChartOptions(),
+      chart: {
+        type: 'bar',
+        height: Math.max(320, videos.length * 28),
+        events: {
+          click: (_e, _ctx, config) => {
+            if (config.dataPointIndex == null || config.dataPointIndex < 0) return;
+            copyVideoId(videos[config.dataPointIndex]?.video_id);
+          },
+          xAxisLabelClick: (_e, _ctx, config) => {
+            if (config.labelIndex == null || config.labelIndex < 0) return;
+            copyVideoId(videos[config.labelIndex]?.video_id);
+          },
+        },
+      },
+      series: [{ name: metricName, data: metricData }],
+      xaxis: {
+        categories: labels,
+        labels: { style: { fontSize: '11px', cssClass: 'apexcharts-yaxis-label cursor-pointer' } },
+      },
+      yaxis: {
+        labels: {
+          formatter: v => typeof v === 'number'
+            ? (useGmv ? '$' + fmt.number(v) : fmt.number(v))
+            : String(v || ''),
+        },
+      },
+      plotOptions: {
+        bar: {
+          horizontal: true,
+          borderRadius: 4,
+          barHeight: '70%',
+          dataLabels: { position: 'top' },
+        },
+      },
+      states: {
+        active: { filter: { type: 'none' } },
+        hover: { filter: { type: 'lighten', value: 0.05 } },
+      },
+      dataLabels: { enabled: false },
+      colors: [CHART_COLORS.red],
+      tooltip: {
+        custom: ({ dataPointIndex }) => {
+          const row = videos[dataPointIndex];
+          if (!row) return '';
+          const value = useGmv ? fmt.currency(row.gmv) : fmt.number(row.vv);
+          const title = row.video_title ? `<div class="fw-semibold mb-1">${escapeHtml(row.video_title)}</div>` : '';
+          return `<div class="px-2 py-1" style="user-select:text">
+            ${title}
+            <div><span class="text-muted">ID:</span> <code style="user-select:all">${escapeHtml(row.video_id || '—')}</code></div>
+            <div>${metricName}: ${value}</div>
+            <div class="small text-muted mt-1">Clic para copiar ID</div>
+          </div>`;
+        },
+      },
+    });
+
+    container.style.cursor = 'pointer';
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   function truncate(str, max) {

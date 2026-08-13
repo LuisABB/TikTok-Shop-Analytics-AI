@@ -35,22 +35,20 @@
 
   <!-- Productos sin ventas -->
   <div class="col-12 col-xl-5">
-    <div class="section-card h-100">
-      <div class="card-header-custom">
+    <div class="section-card h-100 d-flex flex-column">
+      <div class="card-header-custom flex-shrink-0">
         <h6><i class="bi bi-exclamation-circle me-2 text-danger"></i>Productos con Tráfico sin Ventas</h6>
         <span class="badge bg-danger" id="no-sales-count">0</span>
       </div>
-      <div class="card-body-custom p-0">
-        <div style="max-height:300px; overflow-y:auto">
-          <table class="analytics-table">
-            <thead>
-              <tr><th>Producto</th><th class="text-end">Impresiones</th><th class="text-end">Clics</th></tr>
-            </thead>
-            <tbody id="no-sales-body">
-              <tr><td colspan="3" class="text-center text-muted py-3">Cargando...</td></tr>
-            </tbody>
-          </table>
-        </div>
+      <div class="card-body-custom p-0 flex-grow-1" style="min-height:0; overflow-y:auto">
+        <table class="analytics-table">
+          <thead>
+            <tr><th>Producto</th><th class="text-end">Impresiones</th><th class="text-end">Clics</th></tr>
+          </thead>
+          <tbody id="no-sales-body">
+            <tr><td colspan="3" class="text-center text-muted py-3">Cargando...</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>

@@ -54,26 +54,14 @@
 </div>
 
 <div class="section-card">
-  <div class="card-header-custom">
-    <h6><i class="bi bi-table me-2"></i>Detalle de Videos</h6>
+  <div class="card-header-custom d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <h6 class="mb-0"><i class="bi bi-play-btn me-2 text-danger"></i>Top Videos por Reproducciones</h6>
+    <div class="input-group input-group-sm" style="max-width:280px">
+      <span class="input-group-text"><i class="bi bi-search"></i></span>
+      <input type="search" class="form-control" id="video-id-search" placeholder="Buscar por ID..." autocomplete="off">
+    </div>
   </div>
-  <div class="card-body-custom p-0" style="overflow-x:auto">
-    <table class="analytics-table">
-      <thead>
-        <tr>
-          <th>Video</th>
-          <th>Autor</th>
-          <th class="text-end">Reproducciones</th>
-          <th class="text-end">GMV</th>
-          <th class="text-end">Pedidos</th>
-          <th class="text-end">CTR</th>
-          <th class="text-end">CTOR</th>
-          <th class="text-end">GPM</th>
-        </tr>
-      </thead>
-      <tbody id="videos-table-body">
-        <tr><td colspan="8" class="text-center text-muted py-4">Cargando...</td></tr>
-      </tbody>
-    </table>
+  <div class="card-body-custom">
+    <div id="chart-video-list" style="min-height:320px"></div>
   </div>
 </div>

@@ -209,7 +209,7 @@ async function getProductsWithoutSales(startDate, endDate) {
     where,
     _sum: { impressions: true, clicks: true },
     orderBy: { _sum: { impressions: 'desc' } },
-    take: 20,
+    take: 10,
   });
 
   const productIds = withTraffic.map(r => r.product_id);
@@ -268,6 +268,49 @@ async function getTopVideos(limit = 10, startDate, endDate) {
     ctr:  r.ctr  ? toNum(r.ctr)  * 100 : null,
     ctor: r.ctor ? toNum(r.ctor) * 100 : null,
     gpm:  toNum(r.gpm),
+  })));
+}
+
+// ── Video Performance List (tabla videos) ──────────────────────────────────────
+async function getVideoList(limit = 15, startDate, endDate, q) {
+  const dateFilter = buildDateFilter(startDate, endDate);
+  const query = q != null ? String(q).trim() : '';
+  const where = {
+    ...(dateFilter ? { published_at: dateFilter } : {}),
+    ...(query ? { video_id: { contains: query } } : {}),
+  };
+
+  return prisma.video.findMany({
+    where,
+    orderBy: [{ vv: 'desc' }, { gmv: 'desc' }],
+    take: limit,
+    select: {
+      video_id: true,
+      video_title: true,
+      creator_name: true,
+      published_at: true,
+      vv: true,
+      gmv: true,
+      orders: true,
+      ctr: true,
+      ctor: true,
+      gpm: true,
+      likes: true,
+      completion_rate: true,
+    },
+  }).then(rows => rows.map(r => ({
+    video_id:     r.video_id,
+    video_title:  r.video_title,
+    creator_name: r.creator_name,
+    published_at: r.published_at,
+    vv:           r.vv,
+    gmv:          toNum(r.gmv),
+    orders:       r.orders,
+    ctr:          r.ctr  ? toNum(r.ctr)  * 100 : null,
+    ctor:         r.ctor ? toNum(r.ctor) * 100 : null,
+    gpm:          toNum(r.gpm),
+    likes:        r.likes,
+    completion_rate: r.completion_rate ? toNum(r.completion_rate) * 100 : null,
   })));
 }
 
@@ -552,6 +595,7 @@ module.exports = {
   getProductsWithoutSales,
   getVideoKPIs,
   getTopVideos,
+  getVideoList,
   getLiveKPIs,
   getSearchKPIs,
   getTopSearchProducts,

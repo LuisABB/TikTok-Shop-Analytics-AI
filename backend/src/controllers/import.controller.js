@@ -546,89 +546,169 @@ async function handleSearchStats(rows, reportDate) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 async function handleVideoPerformanceList(rows) {
-  let saved = 0;
+  // Agregar por video_id dentro del CSV (suma métricas acumulables)
+  const byVideoId = new Map();
+
   for (const row of rows) {
     if (!row.video_id) continue;
-    
-    // Parsear fecha de publicación
+    const videoId = String(row.video_id);
+
     const publishedAt = parseDate(row.date || row.hora || row.start_time || row.published_at);
     if (!publishedAt) continue;
 
-    // Parsear productos del campo "Productos" (formato: "Nombre(ID)")
     const productsField = row.productos || row.products || row.product_name || '';
     const productMatch = productsField.match(/\((\d+)\)/);
     const productId = productMatch ? productMatch[1] : null;
 
+    const incoming = {
+      video_id:             videoId,
+      video_title:          row.video_title ?? null,
+      video_caption:        row.video_caption ?? row.informacion_del_video ?? null,
+      creator_name:         row.creator_name ?? row.nombre_del_creador ?? null,
+      creator_id:           (row.creator_id || row.id_del_creador) != null
+        ? String(row.creator_id ?? row.id_del_creador)
+        : null,
+      published_at:         publishedAt,
+      vv:                   row.vv != null ? Math.round(row.vv) : null,
+      completion_rate:      row.completion_rate ?? row.tasa_de_finalizacion ?? null,
+      likes:                row.likes != null ? Math.round(row.likes) : null,
+      comments:             row.comments != null ? Math.round(row.comments) : null,
+      shares:               row.shares != null ? Math.round(row.shares) : null,
+      new_followers:        row.new_followers != null ? Math.round(row.new_followers) : null,
+      product_impressions:  row.product_impressions != null ? Math.round(row.product_impressions) : null,
+      product_clicks:       row.product_clicks != null ? Math.round(row.product_clicks) : null,
+      ctr:                  row.ctr ?? null,
+      ctor:                 row.ctor ?? null,
+      gmv:                  row.gmv != null ? Number(row.gmv) : null,
+      orders:               row.orders != null ? Math.round(row.orders) : null,
+      gpm:                  row.gpm ?? null,
+      video_to_live_clicks: row.video_to_live_clicks != null ? Math.round(row.video_to_live_clicks) : null,
+      video_to_live_rate:   row.video_to_live_rate ?? row.tasa_video_a_transmision ?? null,
+      diagnosis:            row.diagnosis ?? row.diagnostico ?? null,
+      productIds:           productId ? [productId] : [],
+    };
+
+    const prev = byVideoId.get(videoId);
+    if (!prev) {
+      byVideoId.set(videoId, incoming);
+      continue;
+    }
+
+    // Sumar métricas acumulables; metadata/rates: conservar el último no nulo
+    prev.vv                   = sumNullableInt(prev.vv, incoming.vv);
+    prev.likes                = sumNullableInt(prev.likes, incoming.likes);
+    prev.comments             = sumNullableInt(prev.comments, incoming.comments);
+    prev.shares               = sumNullableInt(prev.shares, incoming.shares);
+    prev.new_followers        = sumNullableInt(prev.new_followers, incoming.new_followers);
+    prev.product_impressions  = sumNullableInt(prev.product_impressions, incoming.product_impressions);
+    prev.product_clicks       = sumNullableInt(prev.product_clicks, incoming.product_clicks);
+    prev.orders               = sumNullableInt(prev.orders, incoming.orders);
+    prev.video_to_live_clicks = sumNullableInt(prev.video_to_live_clicks, incoming.video_to_live_clicks);
+    prev.gmv                  = sumNullableNum(prev.gmv, incoming.gmv);
+
+    if (incoming.video_title)   prev.video_title = incoming.video_title;
+    if (incoming.video_caption) prev.video_caption = incoming.video_caption;
+    if (incoming.creator_name)  prev.creator_name = incoming.creator_name;
+    if (incoming.creator_id)    prev.creator_id = incoming.creator_id;
+    if (incoming.diagnosis)     prev.diagnosis = incoming.diagnosis;
+    if (incoming.completion_rate != null) prev.completion_rate = incoming.completion_rate;
+    if (incoming.ctr != null)   prev.ctr = incoming.ctr;
+    if (incoming.ctor != null)  prev.ctor = incoming.ctor;
+    if (incoming.gpm != null)   prev.gpm = incoming.gpm;
+    if (incoming.video_to_live_rate != null) prev.video_to_live_rate = incoming.video_to_live_rate;
+    // Conservar la fecha de publicación más antigua
+    if (incoming.published_at < prev.published_at) prev.published_at = incoming.published_at;
+    for (const pid of incoming.productIds) {
+      if (!prev.productIds.includes(pid)) prev.productIds.push(pid);
+    }
+  }
+
+  let saved = 0;
+  for (const row of byVideoId.values()) {
+    const updateData = {
+      video_title:   row.video_title   ?? undefined,
+      video_caption: row.video_caption ?? undefined,
+      creator_name:  row.creator_name  ?? undefined,
+      creator_id:    row.creator_id    ?? undefined,
+      diagnosis:     row.diagnosis     ?? undefined,
+      // Tasas: último valor del CSV (no se suman)
+      completion_rate:     row.completion_rate     ?? undefined,
+      ctr:                 row.ctr                 ?? undefined,
+      ctor:                row.ctor                ?? undefined,
+      gpm:                 row.gpm                 ?? undefined,
+      video_to_live_rate:  row.video_to_live_rate  ?? undefined,
+    };
+
+    // Contadores/montos: sumar sobre lo ya guardado
+    if (row.vv != null)                   updateData.vv = { increment: row.vv };
+    if (row.likes != null)                updateData.likes = { increment: row.likes };
+    if (row.comments != null)             updateData.comments = { increment: row.comments };
+    if (row.shares != null)               updateData.shares = { increment: row.shares };
+    if (row.new_followers != null)        updateData.new_followers = { increment: row.new_followers };
+    if (row.product_impressions != null)  updateData.product_impressions = { increment: row.product_impressions };
+    if (row.product_clicks != null)       updateData.product_clicks = { increment: row.product_clicks };
+    if (row.orders != null)               updateData.orders = { increment: row.orders };
+    if (row.video_to_live_clicks != null) updateData.video_to_live_clicks = { increment: row.video_to_live_clicks };
+    if (row.gmv != null)                  updateData.gmv = { increment: row.gmv };
+
     await prisma.video.upsert({
-      where: { video_id: String(row.video_id) },
-      update: {
-        video_title:         row.video_title ?? undefined,
-        video_caption:       row.video_caption ?? row.informacion_del_video ?? undefined,
-        creator_name:        row.creator_name ?? row.nombre_del_creador ?? undefined,
-        creator_id:          (row.creator_id || row.id_del_creador) != null ? String(row.creator_id ?? row.id_del_creador) : undefined,
-        vv:                  row.vv != null ? Math.round(row.vv) : undefined,
-        completion_rate:     row.completion_rate ?? row.tasa_de_finalizacion ?? undefined,
-        likes:               row.likes != null ? Math.round(row.likes) : undefined,
-        comments:            row.comments != null ? Math.round(row.comments) : undefined,
-        shares:              row.shares != null ? Math.round(row.shares) : undefined,
-        new_followers:       row.new_followers != null ? Math.round(row.new_followers) : undefined,
-        product_impressions: row.product_impressions != null ? Math.round(row.product_impressions) : undefined,
-        product_clicks:      row.product_clicks != null ? Math.round(row.product_clicks) : undefined,
-        ctr:                 row.ctr ?? undefined,
-        ctor:                row.ctor ?? undefined,
-        gmv:                 row.gmv ?? undefined,
-        orders:              row.orders != null ? Math.round(row.orders) : undefined,
-        gpm:                 row.gpm ?? undefined,
-        video_to_live_clicks: row.video_to_live_clicks != null ? Math.round(row.video_to_live_clicks) : undefined,
-        video_to_live_rate:  row.video_to_live_rate ?? row.tasa_video_a_transmision ?? undefined,
-        diagnosis:           row.diagnosis ?? row.diagnostico ?? undefined,
-      },
+      where: { video_id: row.video_id },
+      update: updateData,
       create: {
-        video_id:            String(row.video_id),
-        video_title:         row.video_title ?? null,
-        video_caption:       row.video_caption ?? row.informacion_del_video ?? null,
-        creator_name:        row.creator_name ?? row.nombre_del_creador ?? null,
-        creator_id:          (row.creator_id || row.id_del_creador) != null ? String(row.creator_id ?? row.id_del_creador) : null,
-        published_at:        publishedAt,
-        vv:                  row.vv != null ? Math.round(row.vv) : null,
-        completion_rate:     row.completion_rate ?? row.tasa_de_finalizacion ?? null,
-        likes:               row.likes != null ? Math.round(row.likes) : null,
-        comments:            row.comments != null ? Math.round(row.comments) : null,
-        shares:              row.shares != null ? Math.round(row.shares) : null,
-        new_followers:       row.new_followers != null ? Math.round(row.new_followers) : null,
-        product_impressions: row.product_impressions != null ? Math.round(row.product_impressions) : null,
-        product_clicks:      row.product_clicks != null ? Math.round(row.product_clicks) : null,
-        ctr:                 row.ctr ?? null,
-        ctor:                row.ctor ?? null,
-        gmv:                 row.gmv ?? null,
-        orders:              row.orders != null ? Math.round(row.orders) : null,
-        gpm:                 row.gpm ?? null,
-        video_to_live_clicks: row.video_to_live_clicks != null ? Math.round(row.video_to_live_clicks) : null,
-        video_to_live_rate:  row.video_to_live_rate ?? row.tasa_video_a_transmision ?? null,
-        diagnosis:           row.diagnosis ?? row.diagnostico ?? null,
+        video_id:             row.video_id,
+        video_title:          row.video_title,
+        video_caption:        row.video_caption,
+        creator_name:         row.creator_name,
+        creator_id:           row.creator_id,
+        published_at:         row.published_at,
+        vv:                   row.vv,
+        completion_rate:      row.completion_rate,
+        likes:                row.likes,
+        comments:             row.comments,
+        shares:               row.shares,
+        new_followers:        row.new_followers,
+        product_impressions:  row.product_impressions,
+        product_clicks:       row.product_clicks,
+        ctr:                  row.ctr,
+        ctor:                 row.ctor,
+        gmv:                  row.gmv,
+        orders:               row.orders,
+        gpm:                  row.gpm,
+        video_to_live_clicks: row.video_to_live_clicks,
+        video_to_live_rate:   row.video_to_live_rate,
+        diagnosis:            row.diagnosis,
       },
     });
 
-    // Crear relación video-producto si existe
-    if (productId) {
+    for (const productId of row.productIds) {
       await prisma.videoProduct.upsert({
-        where: { 
+        where: {
           video_id_product_id: {
-            video_id: String(row.video_id),
-            product_id: String(productId)
-          }
+            video_id: row.video_id,
+            product_id: String(productId),
+          },
         },
         update: {},
         create: {
-          video_id: String(row.video_id),
+          video_id: row.video_id,
           product_id: String(productId),
         },
-      }).catch(() => {}); // Ignorar si el producto no existe aún
+      }).catch(() => {});
     }
 
     saved++;
   }
   return saved;
+}
+
+function sumNullableInt(a, b) {
+  if (a == null && b == null) return null;
+  return (a || 0) + (b || 0);
+}
+
+function sumNullableNum(a, b) {
+  if (a == null && b == null) return null;
+  return Number(a || 0) + Number(b || 0);
 }
 
 async function handleLiveSessionList(rows) {
