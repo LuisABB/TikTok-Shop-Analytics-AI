@@ -123,8 +123,9 @@ async function handleProductList(rows, fallbackDate) {
     rows.map(r => r.product_id).filter(Boolean).map(id => String(id))
   )];
   if (productIds.length) {
+    // Solo reemplazar el mismo periodo; no borrar otros meses
     await prisma.productMetric.deleteMany({
-      where: { product_id: { in: productIds } },
+      where: { product_id: { in: productIds }, report_date: reportDate },
     });
   }
 
@@ -177,7 +178,7 @@ async function handleProductList(rows, fallbackDate) {
  * Handler para Product Traffic Key Metrics - Reporte completo con métricas avanzadas
  * Incluye: métricas únicas, embudo completo, datos fiscales, reembolsos
  * Guarda canal "all" (Todo) + desglose live / video / product_card / affiliate.
- * Reemplaza métricas previas del producto (siempre la última importación).
+ * Reemplaza solo métricas del mismo report_date (conserva otros meses).
  */
 async function handleProductTrafficKeyMetrics(rows, fallbackDate) {
   let saved = 0;
@@ -188,8 +189,9 @@ async function handleProductTrafficKeyMetrics(rows, fallbackDate) {
     rows.map(r => r.product_id).filter(Boolean).map(id => String(id))
   )];
   if (productIds.length) {
+    // Solo reemplazar el mismo periodo; no borrar otros meses
     await prisma.productMetric.deleteMany({
-      where: { product_id: { in: productIds } },
+      where: { product_id: { in: productIds }, report_date: reportDate },
     });
   }
 
@@ -218,7 +220,19 @@ async function handleProductTrafficKeyMetrics(rows, fallbackDate) {
     if (row.channels && typeof row.channels === 'object') {
       for (const ch of CHANNELS) {
         if (row.channels[ch]) {
-          channelRows.push({ channel: ch, data: { ...row, ...row.channels[ch] } });
+          // Solo métricas del canal + identidad. No mezclar totales de "Todo"
+          // (antes items_sold de all se filtraba a affiliate/otros canales).
+          channelRows.push({
+            channel: ch,
+            data: {
+              product_id:   row.product_id,
+              product_name: row.product_name,
+              status:       row.status,
+              category:     row.category,
+              price:        row.price,
+              ...row.channels[ch],
+            },
+          });
         }
       }
     }
@@ -227,6 +241,13 @@ async function handleProductTrafficKeyMetrics(rows, fallbackDate) {
     }
 
     for (const { channel, data } of channelRows) {
+      const orders = data.orders != null ? Math.round(data.orders) : null;
+      let itemsSold = data.items_sold != null ? Math.round(data.items_sold) : null;
+      // Product Traffic suele omitir artículos por canal; si hay pedidos, usarlos.
+      if ((itemsSold == null || itemsSold === 0) && orders > 0 && channel !== 'all') {
+        itemsSold = orders;
+      }
+
       await prisma.productMetric.create({
         data: {
           product_id:  productId,
@@ -234,9 +255,9 @@ async function handleProductTrafficKeyMetrics(rows, fallbackDate) {
           channel,
 
           gmv:                     data.gmv                     ?? null,
-          orders:                  data.orders                  != null ? Math.round(data.orders)      : null,
+          orders,
           sku_orders:              data.sku_orders              != null ? Math.round(data.sku_orders)  : null,
-          items_sold:              data.items_sold              != null ? Math.round(data.items_sold)  : null,
+          items_sold:              itemsSold,
           customers:               data.customers               != null ? Math.round(data.customers)   : null,
           aov:                     data.aov                     ?? null,
 
@@ -1019,8 +1040,8 @@ async function importCSV(req, res) {
     }
 
     // Usar rango de fechas extraído de metadatos (header del CSV) o filas.
-    // Para listados de producto (periodo agregado) se usa la ÚLTIMA fecha del rango
-    // y se reemplazan métricas previas del producto en el handler.
+    // Product Traffic / Product List: se guarda con la ÚLTIMA fecha del rango
+    // y solo se reemplazan métricas de ese mismo report_date (otros meses intactos).
     const { startDate, endDate } = dateRange || { startDate: null, endDate: null };
     const fallbackDate = (detected.type === 'PRODUCT_TRAFFIC_KEY_METRICS'
       ? (endDate || startDate)

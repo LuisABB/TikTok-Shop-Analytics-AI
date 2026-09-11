@@ -99,29 +99,20 @@ async function getTopProducts(metric = 'gmv', limit = 10, startDate, endDate) {
   const allowed = ['gmv', 'orders', 'customers', 'impressions', 'clicks', 'items_sold'];
   const col = allowed.includes(metric) ? metric : 'gmv';
 
-  // Solo canal "all" (Todo) para no duplicar LIVE+Video+Tarjeta en el total.
-  // Si hay varias fechas, usar la más reciente dentro del filtro.
+  // Canal "all" sumado en todo el rango (un snapshot por mes no se pisa con otro).
   const whereBase = {
     channel: 'all',
     ...(dateFilter ? { report_date: dateFilter } : {}),
   };
 
-  const latest = await prisma.productMetric.findFirst({
-    where: whereBase,
-    orderBy: { report_date: 'desc' },
-    select: { report_date: true },
-  });
-  if (!latest) return [];
-
-  const where = { ...whereBase, report_date: latest.report_date };
-
   const agg = await prisma.productMetric.groupBy({
     by: ['product_id'],
-    where,
+    where: whereBase,
     _sum: { gmv: true, orders: true, customers: true, impressions: true, clicks: true, add_to_cart: true, items_sold: true },
     orderBy: { _sum: { [col]: 'desc' } },
     take: limit,
   });
+  if (!agg.length) return [];
 
   const productIds = agg.map(r => r.product_id);
   const products = await prisma.product.findMany({
@@ -130,16 +121,15 @@ async function getTopProducts(metric = 'gmv', limit = 10, startDate, endDate) {
   });
   const nameMap = Object.fromEntries(products.map(p => [p.product_id, p.product_name]));
 
-  // Desglose por canal (misma fecha) para la gráfica apilada/agrupada
-  const channelRows = await prisma.productMetric.findMany({
+  // Desglose por canal sumado en el mismo rango
+  const channelRows = await prisma.productMetric.groupBy({
+    by: ['product_id', 'channel'],
     where: {
       product_id: { in: productIds },
-      report_date: latest.report_date,
       channel: { in: ['all', 'live', 'video', 'product_card'] },
+      ...(dateFilter ? { report_date: dateFilter } : {}),
     },
-    select: {
-      product_id: true,
-      channel: true,
+    _sum: {
       gmv: true,
       orders: true,
       customers: true,
@@ -152,13 +142,18 @@ async function getTopProducts(metric = 'gmv', limit = 10, startDate, endDate) {
   const byProductChannel = {};
   for (const r of channelRows) {
     if (!byProductChannel[r.product_id]) byProductChannel[r.product_id] = {};
+    const orders = toNum(r._sum.orders) || 0;
+    let itemsSold = toNum(r._sum.items_sold) || 0;
+    if (itemsSold === 0 && orders > 0 && r.channel !== 'all') {
+      itemsSold = orders;
+    }
     byProductChannel[r.product_id][r.channel] = {
-      gmv:          toNum(r.gmv)          || 0,
-      orders:       toNum(r.orders)       || 0,
-      customers:    toNum(r.customers)    || 0,
-      impressions:  toNum(r.impressions)  || 0,
-      clicks:       toNum(r.clicks)       || 0,
-      items_sold:   toNum(r.items_sold)   || 0,
+      gmv:          toNum(r._sum.gmv)          || 0,
+      orders,
+      customers:    toNum(r._sum.customers)    || 0,
+      impressions:  toNum(r._sum.impressions)  || 0,
+      clicks:       toNum(r._sum.clicks)       || 0,
+      items_sold:   itemsSold,
     };
   }
 
@@ -176,7 +171,6 @@ async function getTopProducts(metric = 'gmv', limit = 10, startDate, endDate) {
       toNum(r._sum.orders)      || 0,
       toNum(r._sum.impressions) || 0
     ),
-    report_date: latest.report_date,
     channels: byProductChannel[r.product_id] || {},
   }));
 }
@@ -189,37 +183,26 @@ async function getProductsWithoutSales(startDate, endDate) {
     ...(dateFilter ? { report_date: dateFilter } : {}),
   };
 
-  const latest = await prisma.productMetric.findFirst({
-    where: whereBase,
-    orderBy: { report_date: 'desc' },
-    select: { report_date: true },
-  });
-  if (!latest) return [];
-
-  const where = {
-    ...whereBase,
-    report_date: latest.report_date,
-    impressions: { gt: 0 },
-    orders: { equals: 0 },
-  };
-
-  // Productos con impresiones pero 0 pedidos
+  // Agregar en el rango: tráfico > 0 y pedidos totales = 0
   const withTraffic = await prisma.productMetric.groupBy({
     by: ['product_id'],
-    where,
-    _sum: { impressions: true, clicks: true },
+    where: whereBase,
+    _sum: { impressions: true, clicks: true, orders: true },
     orderBy: { _sum: { impressions: 'desc' } },
-    take: 10,
   });
 
-  const productIds = withTraffic.map(r => r.product_id);
+  const noSales = withTraffic
+    .filter(r => (toNum(r._sum.impressions) || 0) > 0 && (toNum(r._sum.orders) || 0) === 0)
+    .slice(0, 10);
+
+  const productIds = noSales.map(r => r.product_id);
   const products = await prisma.product.findMany({
     where: { product_id: { in: productIds } },
     select: { product_id: true, product_name: true },
   });
   const nameMap = Object.fromEntries(products.map(p => [p.product_id, p.product_name]));
 
-  return withTraffic.map(r => ({
+  return noSales.map(r => ({
     product_id:   r.product_id,
     product_name: nameMap[r.product_id] || r.product_id,
     impressions:  toNum(r._sum.impressions) || 0,
@@ -504,6 +487,125 @@ async function getOrderKPIs(startDate, endDate) {
   return { gmv, orders, customers, aov: aovVal, refunds, channels, has_data: orders > 0 };
 }
 
+/**
+ * Desglose del GMV por tipo de contenido (LIVE / Videos / Tarjetas de producto).
+ *
+ * Candidatos:
+ * - product_metrics (Key Metrics por producto, con canales)
+ * - channel_performance (Product Traffic List por canal)
+ *
+ * Se elige el que mejor cuadre con el GMV real del periodo (pedidos/sales).
+ * Así un product_metrics incompleto (p.ej. solo 1 producto) no tapa el List correcto.
+ */
+async function getContentTypeGMV(startDate, endDate) {
+  const dateFilter = buildDateFilter(startDate, endDate);
+  const empty = { live: 0, video: 0, product_card: 0, total: 0, has_data: false, report_date: null, source: null };
+
+  const [sales, orderKpis] = await Promise.all([
+    getSalesKPIs(startDate, endDate),
+    getOrderKPIs(startDate, endDate),
+  ]);
+  const periodGmv = (orderKpis.has_data ? orderKpis.gmv : sales.gmv) || 0;
+  if (periodGmv <= 0) return empty;
+
+  const channelFilter = { in: ['live', 'video', 'product_card'] };
+  const matchesPeriod = (total) =>
+    total > 0 && Math.abs(total - periodGmv) <= Math.max(1, periodGmv * 0.01);
+
+  const candidates = [];
+
+  // product_metrics: snapshot más reciente con GMV > 0
+  const latestPm = await prisma.productMetric.findFirst({
+    where: {
+      channel: channelFilter,
+      gmv: { gt: 0 },
+      ...(dateFilter ? { report_date: dateFilter } : {}),
+    },
+    orderBy: { report_date: 'desc' },
+    select: { report_date: true },
+  });
+
+  if (latestPm) {
+    const agg = await prisma.productMetric.groupBy({
+      by: ['channel'],
+      where: {
+        report_date: latestPm.report_date,
+        channel: channelFilter,
+      },
+      _sum: { gmv: true },
+    });
+    const byCh = Object.fromEntries(agg.map(r => [r.channel, toNum(r._sum.gmv) || 0]));
+    const live = byCh.live || 0;
+    const video = byCh.video || 0;
+    const product_card = byCh.product_card || 0;
+    const total = live + video + product_card;
+    if (total > 0) {
+      candidates.push({
+        live, video, product_card, total,
+        has_data: true,
+        report_date: latestPm.report_date,
+        source: 'product_metrics',
+        score: Math.abs(total - periodGmv),
+        exact: matchesPeriod(total),
+      });
+    }
+  }
+
+  // channel_performance: snapshot más reciente del rango
+  const latestCp = await prisma.channelPerformance.findFirst({
+    where: {
+      channel: channelFilter,
+      gmv: { gt: 0 },
+      ...(dateFilter ? { report_date: dateFilter } : {}),
+    },
+    orderBy: { report_date: 'desc' },
+    select: { report_date: true },
+  });
+
+  if (latestCp) {
+    const cpRows = await prisma.channelPerformance.findMany({
+      where: {
+        report_date: latestCp.report_date,
+        channel: channelFilter,
+      },
+      select: { channel: true, gmv: true },
+    });
+    const byCh = Object.fromEntries(cpRows.map(r => [r.channel, toNum(r.gmv) || 0]));
+    const live = byCh.live || 0;
+    const video = byCh.video || 0;
+    const product_card = byCh.product_card || 0;
+    const total = live + video + product_card;
+    if (total > 0) {
+      candidates.push({
+        live, video, product_card, total,
+        has_data: true,
+        report_date: latestCp.report_date,
+        source: 'channel_performance',
+        score: Math.abs(total - periodGmv),
+        exact: matchesPeriod(total),
+      });
+    }
+  }
+
+  if (!candidates.length) return empty;
+
+  // Preferir match exacto con GMV del periodo; si no, el más cercano
+  candidates.sort((a, b) => {
+    if (a.exact !== b.exact) return a.exact ? -1 : 1;
+    return a.score - b.score;
+  });
+  const best = candidates[0];
+  return {
+    live: best.live,
+    video: best.video,
+    product_card: best.product_card,
+    total: best.total,
+    has_data: true,
+    report_date: best.report_date,
+    source: best.source,
+  };
+}
+
 // ── Tendencia GMV diaria desde órdenes reales ─────────────────────────────────
 async function getOrderGMVTrend(startDate, endDate) {
   const dateFilter = buildDateFilter(startDate, endDate);
@@ -602,6 +704,7 @@ module.exports = {
   getServiceKPIs,
   getOrderKPIs,
   getOrderGMVTrend,
+  getContentTypeGMV,
   getAvailableDates,
   getFullSummary,
 };
